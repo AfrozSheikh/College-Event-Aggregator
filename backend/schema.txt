@@ -1,0 +1,90 @@
+-- Create database
+CREATE DATABASE IF NOT EXISTS college_event_system;
+USE college_event_system;
+
+-- Users table
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone VARCHAR(15),
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'faculty', 'student') NOT NULL,
+    status ENUM('approved', 'pending') DEFAULT 'pending',
+    
+    -- Role-specific fields
+    faculty_id VARCHAR(50),
+    department VARCHAR(100),
+    college_name VARCHAR(150),
+    course VARCHAR(100),
+    year VARCHAR(10),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Insert default admin
+INSERT INTO users (name, email, password, role, status) 
+VALUES ('Admin', 'admin@college.edu', 'admin123', 'admin', 'approved');
+
+-- Events table
+CREATE TABLE events (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) NOT NULL,
+    location VARCHAR(200),
+    event_date DATE NOT NULL,
+    event_time TIME NOT NULL,
+    organized_by VARCHAR(200),
+    rules_eligibility TEXT,
+    max_participants INT,
+    registration_fees DECIMAL(10,2) DEFAULT 0,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Event gallery table
+CREATE TABLE event_gallery (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    image_path VARCHAR(500) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+);
+
+-- Participations table
+CREATE TABLE participations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    student_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    phone VARCHAR(15),
+    college VARCHAR(150),
+    course_year VARCHAR(100),
+    team_members TEXT,
+    document_path VARCHAR(500),
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Feedback table
+CREATE TABLE feedback (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    student_id INT NOT NULL,
+    rating INT CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    suggestions TEXT,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_events_date ON events(event_date);
+CREATE INDEX idx_users_role_status ON users(role, status);
+CREATE INDEX idx_participations_event ON participations(event_id);
