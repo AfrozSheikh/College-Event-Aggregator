@@ -102,30 +102,40 @@ const authController = {
     },
     
     // Get current user (simple session simulation)
-    getCurrentUser: async (req, res) => {
-        try {
-            const { userId } = req.query;
-            
-            if (!userId) {
-                return res.status(400).json({ error: 'User ID required' });
-            }
-            
-            const [users] = await pool.query(
-                'SELECT id, name, email, phone, role, status, faculty_id, department, college_name, course, year FROM users WHERE id = ?',
-                [userId]
-            );
-            
-            if (users.length === 0) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            
-            res.json(users[0]);
-            
-        } catch (error) {
-            console.error('Get user error:', error);
-            res.status(500).json({ error: 'Server error' });
-        }
+ // Update getCurrentUser function
+getCurrentUser: async (req, res) => {
+    try {
+      const { userId } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+      }
+      
+      const [users] = await pool.query(
+        `SELECT id, name, email, phone, role, status, 
+                faculty_id, department, college_name, course, year 
+         FROM users WHERE id = ?`,
+        [userId]
+      );
+      
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      const user = users[0];
+      
+      // For faculty, check if still approved
+      if (user.role === 'faculty' && user.status !== 'approved') {
+        return res.status(401).json({ error: 'Faculty account not approved' });
+      }
+      
+      res.json(user);
+      
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ error: 'Server error' });
     }
+  }
 };
 
 module.exports = authController;

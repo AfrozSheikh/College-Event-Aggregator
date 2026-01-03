@@ -15,10 +15,37 @@ const EventDetail = () => {
   const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
+  const [isRegistered, setIsRegistered] = useState(false);
+const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
+  // useEffect(() => {
+  //   fetchEventData();
+  // }, [id]);
+  const checkRegistrationStatus = async () => {
+    try {
+      const response = await axios.get(`http://localhost:5000/api/participations/check/${id}/${user.id}`);
+      setIsRegistered(response.data.isRegistered);
+    } catch (error) {
+      console.error('Error checking registration status:', error);
+    }
+  };
+  
+  const checkFeedbackStatus = async () => {
+    try {
+      const response = await axios.get(`http://localhost:5000/api/feedback/check/${id}/${user.id}`);
+      setHasGivenFeedback(response.data.hasGivenFeedback);
+    } catch (error) {
+      console.error('Error checking feedback status:', error);
+    }
+  };
 
   useEffect(() => {
     fetchEventData();
-  }, [id]);
+    
+    if (user?.role === 'student') {
+      checkRegistrationStatus();
+      checkFeedbackStatus();
+    }
+  }, [id, user]);
 
   const fetchEventData = async () => {
     try {
@@ -96,23 +123,59 @@ const EventDetail = () => {
             </div>
             
             <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
-              {canRegister && (
+              {/* {canRegister && (
                 <Link
                   to={`/events/${id}/participate`}
                   className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
                 >
                   Register Now
                 </Link>
-              )}
+              )} */}
+              {canRegister && (
+  <Link
+  to={`/events/${id}/participate`}
+  className={`px-6 py-3 rounded-lg font-medium transition ${
+    isRegistered
+      ? 'bg-gray-400 text-white cursor-not-allowed'
+      : 'bg-green-600 text-white hover:bg-green-700'
+  }`}
+  onClick={e => {
+    if (isRegistered) {
+      e.preventDefault();
+      toast.error('You are already registered for this event');
+    }
+  }}
+>
+  {isRegistered ? 'Already Registered' : 'Register Now'}
+</Link>
+)}
               
-              {canGiveFeedback && (
+              {/* {canGiveFeedback && (
                 <Link
                   to={`/events/${id}/feedback`}
                   className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-medium"
                 >
                   Give Feedback
                 </Link>
-              )}
+              )} */}
+              {canGiveFeedback && (
+  <Link
+    to={`/events/${id}/feedback`}
+    className={`px-6 py-3 rounded-lg font-medium transition ${
+      hasGivenFeedback
+        ? 'bg-gray-400 text-white cursor-not-allowed'
+        : 'bg-yellow-600 text-white hover:bg-yellow-700'
+    }`}
+    onClick={e => {
+      if (hasGivenFeedback) {
+        e.preventDefault();
+        toast.error('You have already submitted feedback for this event');
+      }
+    }}
+  >
+    {hasGivenFeedback ? 'Feedback Submitted' : 'Give Feedback'}
+  </Link>
+)}
               
               {user?.role === 'admin' && (
                 <button

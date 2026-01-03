@@ -58,6 +58,44 @@ const feedbackController = {
             console.error('Get feedback error:', error);
             res.status(500).json({ error: 'Server error' });
         }
+    },
+
+    // ✅ ADD THIS FUNCTION - Get feedback by user
+    getUserFeedback: async (req, res) => {
+        try {
+            const { userId } = req.params;
+            
+            const [feedback] = await pool.query(
+                `SELECT f.*, e.title as event_title, e.event_date, e.location 
+                 FROM feedback f 
+                 LEFT JOIN events e ON f.event_id = e.id 
+                 WHERE f.student_id = ? 
+                 ORDER BY f.submitted_at DESC`,
+                [userId]
+            );
+            
+            res.json(feedback);
+        } catch (error) {
+            console.error('Get user feedback error:', error);
+            res.status(500).json({ error: 'Server error' });
+        }
+    },
+
+    // ✅ ADD THIS FUNCTION - Check feedback status
+    checkFeedbackStatus: async (req, res) => {
+        try {
+            const { eventId, studentId } = req.params;
+            
+            const [feedback] = await pool.query(
+                'SELECT id FROM feedback WHERE event_id = ? AND student_id = ?',
+                [eventId, studentId]
+            );
+            
+            res.json({ hasGivenFeedback: feedback.length > 0 });
+        } catch (error) {
+            console.error('Check feedback error:', error);
+            res.status(500).json({ error: 'Server error' });
+        }
     }
 };
 

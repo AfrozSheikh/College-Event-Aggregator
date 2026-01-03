@@ -209,7 +209,7 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-6">
+        {/* <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-green-100 text-green-600">
               <UserGroupIcon className="h-8 w-8" />
@@ -219,7 +219,7 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
               <p className="text-2xl font-bold">{stats.totalParticipants}</p>
             </div>
           </div>
-        </div>
+        </div> */}
 
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center">

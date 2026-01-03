@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 import {
   HomeIcon,
   CalendarIcon,
@@ -57,64 +58,56 @@ const Layout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Sidebar for desktop */}
+      {/* ================= DESKTOP SIDEBAR ================= */}
       <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
-        <div className="flex-1 flex flex-col min-h-0 bg-gray-900">
-          <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-            <div className="flex items-center flex-shrink-0 px-4 mb-8">
-              <h1 className="text-xl font-bold text-white">College Event Aggregator</h1>
-            </div>
-            <nav className="flex-1 px-2 space-y-1">
-              {getNavItems().map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition ${
+        <div className="flex flex-col flex-1 bg-gray-900">
+          <div className="flex items-center px-4 py-5">
+            <h1 className="text-xl font-bold text-white">
+              College Event Aggregator
+            </h1>
+          </div>
+
+          <nav className="flex-1 px-2 space-y-1">
+            {getNavItems().map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition ${
+                    isActive
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  <item.icon
+                    className={`mr-3 h-6 w-6 ${
                       isActive
-                        ? 'bg-gray-800 text-white'
-                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                        ? 'text-white'
+                        : 'text-gray-400 group-hover:text-white'
                     }`}
-                  >
-                    <item.icon
-                      className={`mr-3 h-6 w-6 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-          <div className="flex-shrink-0 flex border-t border-gray-700 p-4">
-            <div className="flex items-center">
-              <div className="ml-3">
-                <p className="text-sm font-medium text-white">{user?.name}</p>
-                <p className="text-xs font-medium text-gray-300 capitalize">{user?.role}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="ml-auto text-gray-300 hover:text-white"
-              title="Logout"
-            >
-              <ArrowRightOnRectangleIcon className="h-6 w-6" />
-            </button>
-          </div>
+                  />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
-      {/* Mobile header */}
+      {/* ================= MOBILE HEADER ================= */}
       <div className="md:hidden bg-gray-900 text-white">
         <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-bold">College Event Aggregator</h1>
+          <h1 className="text-lg font-bold">College Event System</h1>
           <div className="flex items-center space-x-4">
+            <NotificationBell />
             <span className="text-sm">{user?.name}</span>
             <button onClick={handleLogout} className="p-1">
               <ArrowRightOnRectangleIcon className="h-6 w-6" />
             </button>
           </div>
         </div>
+
         <nav className="flex overflow-x-auto py-2 px-4 space-x-4">
           {getNavItems().map((item) => (
             <Link
@@ -132,9 +125,29 @@ const Layout = ({ children }) => {
         </nav>
       </div>
 
-      {/* Main content */}
-      <div className="md:pl-64">
-        <main className="py-6">
+      {/* ================= DESKTOP CONTENT + TOP BAR ================= */}
+      <div className="md:pl-64 flex flex-col min-h-screen">
+        {/* Desktop Top Bar */}
+        <div className="hidden md:flex bg-white border-b border-gray-200 px-6 py-3 justify-end items-center">
+          <div className="flex items-center space-x-4">
+            <NotificationBell />
+            <div className="text-sm text-gray-700">
+              <span className="font-medium">{user?.name}</span>
+              <span className="ml-2 text-gray-500 capitalize">
+                ({user?.role})
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-red-600 hover:text-red-800 font-medium"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <main className="flex-1 py-6">
           <div className="mx-auto px-4 sm:px-6 lg:px-8">
             {children}
           </div>

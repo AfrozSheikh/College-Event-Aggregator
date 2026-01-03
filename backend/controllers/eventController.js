@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const multer = require('multer');
 const path = require('path');
+const notificationController = require('./notificationController');
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
@@ -132,6 +133,25 @@ const eventController = {
                 );
                 
                 const eventId = result.insertId;
+                try {
+                    // Get faculty name who created the event
+                    const [faculty] = await pool.query(
+                        'SELECT name FROM users WHERE id = ?',
+                        [createdBy]
+                    );
+                    
+                    const facultyName = faculty[0]?.name || 'Faculty';
+                    
+                    // Send notifications
+                    await notificationController.notifyNewEvent(
+                        eventId,
+                        title,
+                        facultyName
+                    );
+                } catch (notifError) {
+                    console.error('Failed to send notifications:', notifError);
+                    // Don't fail the request if notifications fail
+                }
                 
                 // Handle image uploads
                 if (req.files && req.files.length > 0) {
@@ -156,33 +176,52 @@ const eventController = {
     },
     
     // Update event
-    updateEvent: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const eventData = req.body;
-            
-            // Check if event exists
-            const [events] = await pool.query(
-                'SELECT id FROM events WHERE id = ?',
-                [id]
-            );
-            
-            if (events.length === 0) {
-                return res.status(404).json({ error: 'Event not found' });
-            }
-            
-            // Update event
-            const [result] = await pool.query(
-                'UPDATE events SET ? WHERE id = ?',
-                [eventData, id]
-            );
-            
-            res.json({ message: 'Event updated successfully' });
-        } catch (error) {
-            console.error('Update event error:', error);
-            res.status(500).json({ error: 'Server error' });
+    // Update event function
+updateEvent: async (req, res) => {
+    try {
+        const { id } = req.params;
+        const eventData = req.body;
+        
+        // Check if event exists
+        const [events] = await pool.query(
+            'SELECT id FROM events WHERE id = ?',
+            [id]
+        );
+        
+        if (events.length === 0) {
+            return res.status(404).json({ error: 'Event not found' });
         }
-    },
+        
+        // ✅ FIX: Map frontend field names to database column names
+        const mappedData = {};
+        
+        if (eventData.title !== undefined) mappedData.title = eventData.title;
+        if (eventData.description !== undefined) mappedData.description = eventData.description;
+        if (eventData.category !== undefined) mappedData.category = eventData.category;
+        if (eventData.location !== undefined) mappedData.location = eventData.location;
+        
+        // Map date and time fields
+        if (eventData.eventDate !== undefined) mappedData.event_date = eventData.eventDate;
+        if (eventData.eventTime !== undefined) mappedData.event_time = eventData.eventTime;
+        
+        // Map other fields
+        if (eventData.organizedBy !== undefined) mappedData.organized_by = eventData.organizedBy;
+        if (eventData.rulesEligibility !== undefined) mappedData.rules_eligibility = eventData.rulesEligibility;
+        if (eventData.maxParticipants !== undefined) mappedData.max_participants = eventData.maxParticipants;
+        if (eventData.registrationFees !== undefined) mappedData.registration_fees = eventData.registrationFees;
+        
+        // Update event with mapped data
+        const [result] = await pool.query(
+            'UPDATE events SET ? WHERE id = ?',
+            [mappedData, id]
+        );
+        
+        res.json({ message: 'Event updated successfully' });
+    } catch (error) {
+        console.error('Update event error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+},
     
     // Delete event
     deleteEvent: async (req, res) => {

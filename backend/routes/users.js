@@ -7,5 +7,6 @@ router.get('/all', userController.getAllUsers);
 router.put('/:id/approve', userController.approveFaculty);
 router.delete('/:id', userController.deleteUser);
 router.get('/stats', userController.getDashboardStats);
+// router.get('/stats', userController.getDashboardStats);
 
 module.exports = router;

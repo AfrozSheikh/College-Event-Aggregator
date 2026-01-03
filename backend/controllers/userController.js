@@ -1,6 +1,8 @@
 const pool = require('../config/db');
 
 const userController = {
+
+    
     // Get all pending faculty
     getPendingFaculty: async (req, res) => {
         try {
@@ -70,24 +72,38 @@ const userController = {
     },
 
     // Get dashboard statistics
-    getDashboardStats: async (req, res) => {
-        try {
-            const [events] = await pool.query('SELECT COUNT(*) as count FROM events');
-            const [students] = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = "student" AND status = "approved"');
-            const [faculty] = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = "faculty" AND status = "approved"');
-            const [participations] = await pool.query('SELECT COUNT(*) as count FROM participations');
-            
-            res.json({
-                totalEvents: events[0].count,
-                totalStudents: students[0].count,
-                totalFaculty: faculty[0].count,
-                totalParticipants: participations[0].count
-            });
-        } catch (error) {
-            console.error('Get stats error:', error);
-            res.status(500).json({ error: 'Server error' });
-        }
+  // Add this function to userController.js
+getDashboardStats: async (req, res) => {
+    try {
+        // Get counts in parallel
+        const [
+            [eventsResult],
+            [studentsResult],
+            [facultyResult],
+            [participationsResult],
+            [pendingFacultyResult]
+        ] = await Promise.all([
+            pool.query('SELECT COUNT(*) as count FROM events'),
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = "student" AND status = "approved"'),
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = "faculty" AND status = "approved"'),
+            pool.query('SELECT COUNT(*) as count FROM participations'),
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = "faculty" AND status = "pending"')
+        ]);
+        
+        const stats = {
+            totalEvents: eventsResult[0].count,
+            totalStudents: studentsResult[0].count,
+            totalFaculty: facultyResult[0].count,
+            totalParticipants: participationsResult[0].count,
+            pendingFaculty: pendingFacultyResult[0].count
+        };
+        
+        res.json(stats);
+    } catch (error) {
+        console.error('Get stats error:', error);
+        res.status(500).json({ error: 'Server error' });
     }
+}
 };
 
 module.exports = userController;

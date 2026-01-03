@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const participationController = require('../controllers/participationController');
+const pool = require('../config/db'); // ✅ THIS LINE IS MISSING - ADD IT
 
 router.post('/register', participationController.registerForEvent);
 router.get('/event/:eventId', participationController.getEventParticipations);
@@ -23,4 +24,21 @@ router.get('/student/:studentId', async (req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
   });
+  // Add new route
+// Add check registration status route
+router.get('/check/:eventId/:studentId', async (req, res) => {
+  try {
+    const { eventId, studentId } = req.params;
+    
+    const [registrations] = await pool.query(
+      'SELECT id FROM participations WHERE event_id = ? AND student_id = ?',
+      [eventId, studentId]
+    );
+    
+    res.json({ isRegistered: registrations.length > 0 });
+  } catch (error) {
+    console.error('Check registration error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 module.exports = router;

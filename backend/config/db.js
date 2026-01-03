@@ -4,7 +4,7 @@ require('dotenv').config();
 const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: 'password', // 👈 EXACT wahi
+    password: 'password', // EXACT wahi
     database: 'college_event_system',
     port: 3306,
     waitForConnections: true,

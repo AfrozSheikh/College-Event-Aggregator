@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-
+// import { useAuth } from '../context/AuthContext';
 const EventsPage = () => {
+const [registrationStatus, setRegistrationStatus] = useState({});
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,26 @@ const EventsPage = () => {
   useEffect(() => {
     filterEvents();
   }, [events, searchTerm, selectedCategory, eventType]);
-
+  useEffect(() => {
+    if (user?.role === 'student') {
+      checkRegistrationStatus();
+    }
+  }, [user, filteredEvents]);
+  
+  const checkRegistrationStatus = async () => {
+    try {
+      const statusMap = {};
+      for (const event of filteredEvents) {
+        const response = await axios.get(
+          `http://localhost:5000/api/participations/check/${event.id}/${user.id}`
+        );
+        statusMap[event.id] = response.data.isRegistered;
+      }
+      setRegistrationStatus(statusMap);
+    } catch (error) {
+      console.error('Error checking registration status:', error);
+    }
+  };
   const fetchEvents = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/events');
@@ -254,17 +274,27 @@ const EventsPage = () => {
                     )}
                   </div>
 
-                  {/* Student Actions */}
                   {user?.role === 'student' && new Date(event.event_date) >= new Date() && (
-                    <div className="mt-4">
-                      <Link
-                        to={`/events/${event.id}/participate`}
-                        className="block w-full text-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                      >
-                        Register Now
-                      </Link>
-                    </div>
-                  )}
+  <div className="mt-4">
+    <Link
+      to={`/events/${event.id}/participate`}
+      className={`block w-full text-center px-4 py-2 rounded-lg transition ${
+        registrationStatus[event.id]
+          ? 'bg-gray-400 text-white cursor-not-allowed'
+          : 'bg-green-600 text-white hover:bg-green-700'
+      }`}
+      onClick={e => {
+        if (registrationStatus[event.id]) {
+          e.preventDefault();
+          toast.error('You are already registered for this event');
+        }
+      }}
+    >
+      {registrationStatus[event.id] ? 'Already Registered' : 'Register Now'}
+    </Link>
+  </div>
+)}
+
                 </div>
               </div>
             ))

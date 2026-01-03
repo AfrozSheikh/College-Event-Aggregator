@@ -30,6 +30,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Add with other imports
+const notificationRoutes = require('./routes/notifications');
+
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -46,6 +49,13 @@ app.use('/api/events', eventRoutes);
 app.use('/api/participations', participationRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reports', reportRoutes);
+// Add with other routes
+app.use('/api/notifications', notificationRoutes);
+// Add with other imports
+const statsRoutes = require('./routes/stats');
+
+// Add with other routes
+app.use('/api/stats', statsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
