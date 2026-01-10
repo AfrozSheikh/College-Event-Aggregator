@@ -2,11 +2,16 @@ const pool = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 const notificationController = require('./notificationController');
+const emailService = require('../services/emailService');
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/event-images/');
+        if (file.fieldname === 'paymentQr') {
+            cb(null, 'uploads/payment-qr/');
+        } else {
+            cb(null, 'uploads/event-images/');
+        }
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -27,7 +32,10 @@ const upload = multer({
         }
         cb(new Error('Only image files are allowed!'));
     }
-}).array('images', 10); // Max 10 images
+}).fields([
+    { name: 'images', maxCount: 10 },
+    { name: 'paymentQr', maxCount: 1 }
+]);
 
 const eventController = {
     // Get all events
@@ -105,6 +113,7 @@ const eventController = {
                     eventDate,
                     eventTime,
                     organizedBy,
+                    organizerDepartment,
                     rulesEligibility,
                     maxParticipants,
                     registrationFees,
@@ -115,8 +124,8 @@ const eventController = {
                 const [result] = await pool.query(
                     `INSERT INTO events 
                     (title, description, category, location, event_date, event_time, 
-                     organized_by, rules_eligibility, max_participants, registration_fees, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                     organized_by, organizer_department, rules_eligibility, max_participants, registration_fees, payment_qr_code, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         title,
                         description,
@@ -124,15 +133,36 @@ const eventController = {
                         location,
                         eventDate,
                         eventTime,
-                        organizedBy,
+                        organizedBy || organizerDepartment,
+                        organizerDepartment,
                         rulesEligibility,
                         maxParticipants || null,
                         registrationFees || 0,
+                        req.files['paymentQr'] ? req.files['paymentQr'][0].path : null,
                         createdBy
                     ]
                 );
                 
+                
                 const eventId = result.insertId;
+                
+                // Insert event images into gallery
+                if (req.files && req.files['images']) {
+                    for (const file of req.files['images']) {
+                        await pool.query(
+                            'INSERT INTO event_gallery (event_id, image_path) VALUES (?, ?)',
+                            [eventId, file.path]
+                        );
+                    }
+                }
+                
+                // Get event details for notifications
+                const [newEvent] = await pool.query(
+                    'SELECT * FROM events WHERE id = ?',
+                    [eventId]
+                );
+                const eventDetails = newEvent[0];
+                
                 try {
                     // Get faculty name who created the event
                     const [faculty] = await pool.query(
@@ -142,12 +172,30 @@ const eventController = {
                     
                     const facultyName = faculty[0]?.name || 'Faculty';
                     
-                    // Send notifications
+                    // Send in-app notifications
                     await notificationController.notifyNewEvent(
                         eventId,
                         title,
                         facultyName
                     );
+                    
+                    // Send email notifications to all students
+                    const [students] = await pool.query(
+                        'SELECT id, name, email FROM users WHERE role = ? AND status = ?',
+                        ['student', 'approved']
+                    );
+                    
+                    // Send emails asynchronously (don't wait for all to complete)
+                    students.forEach(student => {
+                        emailService.sendEventCreatedEmail(
+                            eventDetails,
+                            student.email,
+                            student.name
+                        ).catch(err => {
+                            console.error(`Failed to send email to ${student.email}:`, err);
+                        });
+                    });
+                    
                 } catch (notifError) {
                     console.error('Failed to send notifications:', notifError);
                     // Don't fail the request if notifications fail
@@ -206,6 +254,12 @@ updateEvent: async (req, res) => {
         
         // Map other fields
         if (eventData.organizedBy !== undefined) mappedData.organized_by = eventData.organizedBy;
+        if (eventData.organizerDepartment !== undefined) {
+            mappedData.organizer_department = eventData.organizerDepartment;
+            if (!eventData.organizedBy) {
+                mappedData.organized_by = eventData.organizerDepartment;
+            }
+        }
         if (eventData.rulesEligibility !== undefined) mappedData.rules_eligibility = eventData.rulesEligibility;
         if (eventData.maxParticipants !== undefined) mappedData.max_participants = eventData.maxParticipants;
         if (eventData.registrationFees !== undefined) mappedData.registration_fees = eventData.registrationFees;

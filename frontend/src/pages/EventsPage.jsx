@@ -11,6 +11,7 @@ const [registrationStatus, setRegistrationStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [eventType, setEventType] = useState('all');
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
@@ -18,6 +19,10 @@ const [registrationStatus, setRegistrationStatus] = useState({});
   const categories = [
     'all', 'technical', 'cultural', 'sports', 
     'workshop', 'seminar', 'competition', 'conference'
+  ];
+  
+  const departments = [
+    'all', 'CSE', 'IT', 'AI', 'EE', 'MECH', 'CIVIL', 'ENTC', 'Chemical', 'Robotics'
   ];
 
   useEffect(() => {
@@ -30,7 +35,7 @@ const [registrationStatus, setRegistrationStatus] = useState({});
 
   useEffect(() => {
     filterEvents();
-  }, [events, searchTerm, selectedCategory, eventType]);
+  }, [events, searchTerm, selectedCategory, selectedDepartment, eventType]);
   useEffect(() => {
     if (user?.role === 'student') {
       checkRegistrationStatus();
@@ -76,6 +81,11 @@ const [registrationStatus, setRegistrationStatus] = useState({});
     // Filter by category
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(event => event.category === selectedCategory);
+    }
+    
+    // Filter by department
+    if (selectedDepartment !== 'all') {
+      filtered = filtered.filter(event => event.organizer_department === selectedDepartment);
     }
 
     // Filter by search term
@@ -125,7 +135,7 @@ const [registrationStatus, setRegistrationStatus] = useState({});
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
@@ -167,6 +177,22 @@ const [registrationStatus, setRegistrationStatus] = useState({});
                 ))}
               </select>
             </div>
+            
+            {/* Department */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+              <select
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              >
+                {departments.map(dept => (
+                  <option key={dept} value={dept}>
+                    {dept === 'all' ? 'All Departments' : dept}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Reset */}
             <div className="flex items-end">
@@ -174,6 +200,7 @@ const [registrationStatus, setRegistrationStatus] = useState({});
                 onClick={() => {
                   setSearchTerm('');
                   setSelectedCategory('all');
+                  setSelectedDepartment('all');
                   setEventType('all');
                 }}
                 className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"

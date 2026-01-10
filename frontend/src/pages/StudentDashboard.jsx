@@ -17,6 +17,7 @@ const StudentDashboard = () => {
   const [pastEvents, setPastEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [registrationStatus, setRegistrationStatus] = useState({});
 
   useEffect(() => {
     fetchEvents();
@@ -29,6 +30,27 @@ const StudentDashboard = () => {
       setUnreadCount(unread);
     }
   }, [notifications]);
+  
+  useEffect(() => {
+    if (user && futureEvents.length > 0) {
+      checkRegistrationStatus();
+    }
+  }, [user, futureEvents]);
+  
+  const checkRegistrationStatus = async () => {
+    try {
+      const statusMap = {};
+      for (const event of futureEvents) {
+        const response = await axios.get(
+          `http://localhost:5000/api/participations/check/${event.id}/${user.id}`
+        );
+        statusMap[event.id] = response.data.isRegistered;
+      }
+      setRegistrationStatus(statusMap);
+    } catch (error) {
+      console.error('Error checking registration status:', error);
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -183,9 +205,19 @@ const StudentDashboard = () => {
                       <div className="mt-2">
                         <Link
                           to={`/events/${event.id}/participate`}
-                          className="inline-block px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
+                          className={`inline-block px-4 py-2 text-sm rounded-lg transition ${
+                            registrationStatus[event.id]
+                              ? 'bg-gray-400 text-white cursor-not-allowed'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                          onClick={(e) => {
+                            if (registrationStatus[event.id]) {
+                              e.preventDefault();
+                              toast.error('You are already registered for this event');
+                            }
+                          }}
                         >
-                          Register Now
+                          {registrationStatus[event.id] ? 'Already Registered' : 'Register Now'}
                         </Link>
                       </div>
                     </Link>

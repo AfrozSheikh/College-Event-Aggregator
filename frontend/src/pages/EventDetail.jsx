@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import FeedbackFormCreator from '../components/FeedbackFormCreator';
 
 const EventDetail = () => {
   const { id } = useParams();
@@ -16,6 +17,8 @@ const EventDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
   const [isRegistered, setIsRegistered] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState(null);
+  const [showFeedbackCreator, setShowFeedbackCreator] = useState(false);
 const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   // useEffect(() => {
   //   fetchEventData();
@@ -58,6 +61,21 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
       setEvent(eventRes.data);
       setParticipations(participationsRes.data);
       setFeedback(feedbackRes.data.feedback || []);
+      
+      // Check if feedback form exists and fetch dynamic responses
+      try {
+        const formRes = await axios.get(`http://localhost:5000/api/feedback-forms/event/${id}`);
+        const form = formRes.data;
+        setFeedbackForm(form);
+        
+        // Fetch dynamic feedback responses for everyone (to display in feedback tab)
+        const responsesRes = await axios.get(`http://localhost:5000/api/feedback-forms/${form.id}/responses`);
+        // Store dynamic responses in event state
+        setEvent(prev => ({ ...prev, dynamicFeedbackResponses: responsesRes.data }));
+      } catch (error) {
+        // No feedback form exists yet
+        setFeedbackForm(null);
+      }
     } catch (error) {
       toast.error('Failed to load event details');
       navigate('/events');
@@ -96,6 +114,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   const canRegister = user?.role === 'student' && !isPastEvent;
   const canGiveFeedback = user?.role === 'student' && isPastEvent;
   const canManage = user?.role === 'admin' || (user?.role === 'faculty' && user.id === event.created_by);
+  const canCreateFeedbackForm = user?.role === 'admin' || user?.role === 'faculty'; // All faculty can create feedback forms
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -177,7 +196,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   </Link>
 )}
               
-              {user?.role === 'admin' && (
+              {(user?.role === 'admin' || user?.role === 'faculty') && (
                 <button
                   onClick={generateReport}
                   className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
@@ -273,8 +292,21 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Feedback ({feedback.length})
+                Feedback
               </button>
+              
+              {canCreateFeedbackForm && (
+                <button
+                  onClick={() => setActiveTab('create-feedback')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'create-feedback'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {feedbackForm ? '✓ Feedback Form' : '➕ Create Feedback Form'}
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -434,7 +466,9 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Event Feedback</h3>
                 <div className="flex items-center">
-                  <span className="text-gray-600 mr-3">{feedback.length} reviews</span>
+                  <span className="text-gray-600 mr-3">
+                    {feedback.length + (event.dynamicFeedbackResponses?.length || 0)} total reviews
+                  </span>
                   {feedback.length > 0 && (
                     <div className="flex items-center">
                       <span className="text-yellow-400 text-xl">★</span>
@@ -446,37 +480,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
                 </div>
               </div>
               
-              {feedback.length > 0 ? (
-                <div className="space-y-6">
-                  {feedback.map((fb) => (
-                    <div key={fb.id} className="border border-gray-200 rounded-lg p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <p className="font-semibold text-gray-800">{fb.student_name}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(fb.submitted_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="text-yellow-400">★</span>
-                          <span className="ml-1 font-medium">{fb.rating}/5</span>
-                        </div>
-                      </div>
-                      
-                      {fb.comment && (
-                        <p className="text-gray-700 mb-4">{fb.comment}</p>
-                      )}
-                      
-                      {fb.suggestions && (
-                        <div className="bg-blue-50 border border-blue-100 rounded p-4">
-                          <p className="text-sm font-medium text-blue-800 mb-1">Suggestions:</p>
-                          <p className="text-blue-700">{fb.suggestions}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
+              {feedback.length === 0 && (!event.dynamicFeedbackResponses || event.dynamicFeedbackResponses.length === 0) ? (
                 <div className="text-center py-12">
                   <p className="text-gray-500">No feedback yet</p>
                   {isPastEvent && user?.role === 'student' && (
@@ -488,6 +492,162 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
                     </Link>
                   )}
                 </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Dynamic Feedback Responses */}
+                  {event.dynamicFeedbackResponses && event.dynamicFeedbackResponses.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 mb-4">
+                        <h4 className="text-lg font-semibold text-gray-800"> Feedback Responses</h4>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                          {event.dynamicFeedbackResponses.length} responses
+                        </span>
+                      </div>
+                      {event.dynamicFeedbackResponses.map((response) => (
+                        <div key={response.id} className="border border-green-200 rounded-lg p-6 bg-green-50">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <p className="font-semibold text-gray-800">{response.student_name}</p>
+                              <p className="text-sm text-gray-600">{response.student_email}</p>
+                              <p className="text-sm text-gray-500">
+                                {new Date(response.submitted_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3 bg-white rounded-lg p-4">
+                            {response.answers && response.answers.map((answer) => (
+                              <div key={answer.id} className="border-l-4 border-blue-400 pl-4 py-2">
+                                <p className="font-medium text-gray-800">{answer.question_text}</p>
+                                <p className="text-gray-600 mt-1">
+                                  {answer.question_type === 'rating' && (
+                                    <span className="flex items-center">
+                                      <span className="text-yellow-400 mr-2">
+                                        {'★'.repeat(parseInt(answer.answer_text) || 0)}
+                                        {'☆'.repeat(5 - (parseInt(answer.answer_text) || 0))}
+                                      </span>
+                                      {answer.answer_text}/5
+                                    </span>
+                                  )}
+                                  {answer.question_type !== 'rating' && (answer.answer_text || 'No answer provided')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* Legacy Feedback */}
+                  {feedback.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 mb-4 mt-8">
+                        <h4 className="text-lg font-semibold text-gray-800">Rating-Based Feedback</h4>
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded">
+                          {feedback.length} reviews
+                        </span>
+                      </div>
+                      {feedback.map((fb) => (
+                        <div key={fb.id} className="border border-gray-200 rounded-lg p-6">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <p className="font-semibold text-gray-800">{fb.student_name}</p>
+                              <p className="text-sm text-gray-500">
+                                {new Date(fb.submitted_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="text-yellow-400">★</span>
+                              <span className="ml-1 font-medium">{fb.rating}/5</span>
+                            </div>
+                          </div>
+                          
+                          {fb.comment && (
+                            <p className="text-gray-700 mb-4">{fb.comment}</p>
+                          )}
+                          
+                          {fb.suggestions && (
+                            <div className="bg-blue-50 border border-blue-100 rounded p-4">
+                              <p className="text-sm font-medium text-blue-800 mb-1">Suggestions:</p>
+                              <p className="text-blue-700">{fb.suggestions}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {activeTab === 'create-feedback' && canCreateFeedbackForm && (
+            <div>
+              <h3 className="text-xl font-semibold text-gray-800 mb-6">
+                {feedbackForm ? 'Feedback Form Details' : 'Create Feedback Form'}
+              </h3>
+              
+              {feedbackForm ? (
+                <div className="space-y-6">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-green-800 font-medium">✓ Feedback form already created for this event</p>
+                    <p className="text-green-700 text-sm mt-1">
+                      {feedbackForm.questions?.length || 0} questions configured
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="font-semibold text-lg mb-4">{feedbackForm.title}</h4>
+                    {feedbackForm.description && (
+                      <p className="text-gray-600 mb-4">{feedbackForm.description}</p>
+                    )}
+                    
+                    <div className="space-y-4">
+                      <h5 className="font-medium text-gray-800">Questions:</h5>
+                      {feedbackForm.questions?.map((q, index) => (
+                        <div key={q.id} className="border-l-4 border-blue-400 pl-4 py-2">
+                          <p className="font-medium">
+                            {index + 1}. {q.question_text}
+                            {q.is_required && <span className="text-red-500 ml-1">*</span>}
+                          </p>
+                          <p className="text-sm text-gray-500 capitalize">Type: {q.question_type}</p>
+                          {q.options && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Options: {q.options.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    {/* <button
+                      onClick={() => setShowFeedbackCreator(true)}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Create New Form (Replace)
+                    </button> */}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                  <h4 className="font-medium text-blue-900 mb-2">No Feedback Form Yet</h4>
+                  <p className="text-blue-800 mb-4">
+                    Create a custom feedback form for this event. Students will be able to submit feedback immediately after registering.
+                  </p>
+                </div>
+              )}
+              
+              {(!feedbackForm || showFeedbackCreator) && (
+                <FeedbackFormCreator
+                  eventId={id}
+                  onSaveComplete={() => {
+                    setShowFeedbackCreator(false);
+                    fetchEventData(); // Refresh to show the new form
+                  }}
+                />
               )}
             </div>
           )}

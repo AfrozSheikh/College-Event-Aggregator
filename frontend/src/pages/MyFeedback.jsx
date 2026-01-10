@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 const MyFeedback = () => {
   const { user } = useAuth();
   const [feedbackList, setFeedbackList] = useState([]);
+  const [dynamicFeedbackList, setDynamicFeedbackList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,10 +20,47 @@ const MyFeedback = () => {
     try {
       console.log('Fetching feedback for user ID:', user.id);
       
-      const response = await axios.get(`http://localhost:5000/api/feedback/user/${user.id}`);
-      console.log('Feedback API response:', response.data);
+      // Fetch legacy feedback
+      const legacyResponse = await axios.get(`http://localhost:5000/api/feedback/user/${user.id}`);
+      console.log('Legacy feedback API response:', legacyResponse.data);
+      setFeedbackList(legacyResponse.data);
       
-      setFeedbackList(response.data);
+      // Fetch dynamic feedback responses - we need to get user's registrations first
+      try {
+        const registrationsResponse = await axios.get(`http://localhost:5000/api/participations/student/${user.id}`);
+        const registrations = registrationsResponse.data;
+        
+        // For each registration, check if there's a dynamic feedback response
+        const dynamicResponses = [];
+        for (const reg of registrations) {
+          try {
+            const formResponse = await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
+            const form = formResponse.data;
+            
+            // Check if student submitted response
+            const responsesResponse = await axios.get(`http://localhost:5000/api/feedback-forms/${form.id}/responses`);
+            const userResponse = responsesResponse.data.find(r => r.student_id === user.id);
+            
+            if (userResponse) {
+              dynamicResponses.push({
+                ...userResponse,
+                event_title: reg.event_title,
+                event_date: reg.event_date,
+                event_id: reg.event_id,
+                form_title: form.title
+              });
+            }
+          } catch (error) {
+            // No dynamic feedback form for this event or not submitted
+            continue;
+          }
+        }
+        
+        setDynamicFeedbackList(dynamicResponses);
+      } catch (error) {
+        console.error('Failed to load dynamic feedback:', error);
+      }
+      
     } catch (error) {
       console.error('Failed to load feedback:', error);
       toast.error('Failed to load feedback. Please try again.');
@@ -52,7 +90,7 @@ const MyFeedback = () => {
           <p className="text-gray-600">View all feedback you've submitted</p>
         </div>
 
-        {feedbackList.length === 0 ? (
+        {feedbackList.length === 0 && dynamicFeedbackList.length === 0 ? (
           <div className="bg-white rounded-xl shadow-lg p-12 text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -70,13 +108,69 @@ const MyFeedback = () => {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Dynamic Feedback Responses */}
+            {dynamicFeedbackList.map(feedback => (
+              <div key={feedback.id} className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {feedback.event_title || 'Event'}
+                      </h3>
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                        Dynamic Form
+                      </span>
+                    </div>
+                    <div className="flex items-center text-gray-600">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>{feedback.event_date ? new Date(feedback.event_date).toLocaleDateString() : 'Date not available'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-gray-700 mb-3">{feedback.form_title}</h4>
+                  <div className="space-y-3">
+                    {feedback.answers?.map((answer, index) => (
+                      <div key={answer.id} className="border-l-2 border-blue-400 pl-3">
+                        <p className="text-sm font-medium text-gray-700">{answer.question_text}</p>
+                        <p className="text-gray-600 mt-1">{answer.answer_text || 'No answer provided'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                  <span className="text-sm text-gray-500">
+                    Submitted: {new Date(feedback.submitted_at).toLocaleDateString()}
+                  </span>
+                  {feedback.event_id && (
+                    <Link
+                      to={`/events/${feedback.event_id}`}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      View Event →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {/* Legacy Feedback */}
             {feedbackList.map(feedback => (
-              <div key={feedback.id} className="bg-white rounded-xl shadow-lg p-6">
+              <div key={feedback.id} className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
                 <div className="flex flex-col md:flex-row justify-between items-start mb-6">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">
-                      {feedback.event_title || 'Event'}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {feedback.event_title || 'Event'}
+                      </h3>
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded">
+                        Legacy
+                      </span>
+                    </div>
                     <div className="flex items-center text-gray-600">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />

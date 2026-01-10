@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const Gallery = () => {
+  const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  const canManage = user?.role === 'admin' || user?.role === 'faculty';
 
   useEffect(() => {
     fetchEvents();
@@ -22,6 +26,26 @@ const Gallery = () => {
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleDeleteEvent = async (eventId, eventTitle) => {
+    if (!window.confirm(`Are you sure you want to delete "${eventTitle}"?`)) return;
+    
+    try {
+      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      toast.success('Event deleted successfully');
+      
+      // Remove deleted event from list
+      const updatedEvents = events.filter(e => e.id !== eventId);
+      setEvents(updatedEvents);
+      
+      // If deleted event was selected, select the first available event
+      if (selectedEvent?.id === eventId) {
+        setSelectedEvent(updatedEvents.length > 0 ? updatedEvents[0] : null);
+      }
+    } catch (error) {
+      toast.error('Failed to delete event');
     }
   };
 
@@ -56,8 +80,20 @@ const Gallery = () => {
         {selectedEvent && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">{selectedEvent.title}</h2>
-              <p className="text-gray-600 mb-4">{selectedEvent.description}</p>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">{selectedEvent.title}</h2>
+                  <p className="text-gray-600 mb-4">{selectedEvent.description}</p>
+                </div>
+                {canManage && (
+                  <button
+                    onClick={() => handleDeleteEvent(selectedEvent.id, selectedEvent.title)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                  >
+                    Delete Event
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                 <span>📅 {new Date(selectedEvent.event_date).toLocaleDateString()}</span>
                 <span>🕒 {selectedEvent.event_time}</span>

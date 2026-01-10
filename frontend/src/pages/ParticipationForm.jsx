@@ -120,6 +120,40 @@ const ParticipationForm = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Payment QR Code Section - Show if fees > 0 */}
+            {event.registration_fees > 0 && event.payment_qr_code && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                <h3 className="font-semibold text-yellow-800 mb-3">💳 Payment Required</h3>
+                <div className="flex flex-col md:flex-row gap-6 items-start">
+                  <div className="flex-1">
+                    <p className="text-gray-700 mb-2">
+                      <span className="font-semibold">Registration Fees:</span> ₹{event.registration_fees}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Please scan the QR code below to make the payment. After payment, proceed with registration.
+                    </p>
+                    <p className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded">
+                      ⚠️ Keep your payment screenshot/reference for verification
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`http://localhost:5000/${event.payment_qr_code}`}
+                      alt="Payment QR Code"
+                      className="w-48 h-48 object-contain border-2 border-yellow-300 rounded-lg shadow-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => window.open(`http://localhost:5000/${event.payment_qr_code}`, '_blank')}
+                      className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      View Full Size
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Personal Information */}
             <div className="space-y-4">
@@ -134,6 +168,8 @@ const ParticipationForm = () => {
                     type="text"
                     name="name"
                     required
+                    minLength="3"
+                    maxLength="100"
                     value={formData.name}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -164,6 +200,8 @@ const ParticipationForm = () => {
                     type="tel"
                     name="phone"
                     required
+                    pattern="[0-9]{10}"
+                    title="Please enter a valid 10-digit phone number"
                     value={formData.phone}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -223,7 +261,7 @@ const ParticipationForm = () => {
             </div>
 
             {/* Document Upload */}
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <h2 className="text-xl font-semibold text-gray-800">Documents (Optional)</h2>
               
               <div>
@@ -250,7 +288,7 @@ const ParticipationForm = () => {
                   </label>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Terms & Submit */}
             <div className="pt-6 border-t border-gray-200">

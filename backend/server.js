@@ -40,6 +40,7 @@ const userRoutes = require('./routes/users');
 const eventRoutes = require('./routes/events');
 const participationRoutes = require('./routes/participations');
 const feedbackRoutes = require('./routes/feedback');
+const feedbackFormRoutes = require('./routes/feedbackForms');
 const reportRoutes = require('./routes/reports');
 
 // Routes
@@ -48,6 +49,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/participations', participationRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/feedback-forms', feedbackFormRoutes);
 app.use('/api/reports', reportRoutes);
 // Add with other routes
 app.use('/api/notifications', notificationRoutes);

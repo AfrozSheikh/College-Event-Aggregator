@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 const MyRegistrations = () => {
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState([]);
+  const [feedbackStatus, setFeedbackStatus] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,7 +20,42 @@ const MyRegistrations = () => {
     try {
       // Fetch student's participations
       const response = await axios.get(`http://localhost:5000/api/participations/student/${user.id}`);
-      setRegistrations(response.data);
+      const regs = response.data;
+      setRegistrations(regs);
+      
+      // Check feedback status for each registration
+      const statusPromises = regs.map(async (reg) => {
+        try {
+          // Check if feedback form exists
+          const formResponse = await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
+          
+          // Check if student has submitted
+          const statusResponse = await axios.get(
+            `http://localhost:5000/api/feedback-forms/check/${reg.event_id}/${user.id}`
+          );
+          
+          return {
+            eventId: reg.event_id,
+            hasForm: true,
+            hasSubmitted: statusResponse.data.hasSubmitted
+          };
+        } catch (error) {
+          // No feedback form exists for this event
+          return {
+            eventId: reg.event_id,
+            hasForm: false,
+            hasSubmitted: false
+          };
+        }
+      });
+      
+      const statuses = await Promise.all(statusPromises);
+      const statusMap = {};
+      statuses.forEach(status => {
+        statusMap[status.eventId] = status;
+      });
+      setFeedbackStatus(statusMap);
+      
     } catch (error) {
       console.error('Failed to load registrations:', error);
       toast.error('Failed to load registrations');
@@ -123,12 +159,29 @@ const MyRegistrations = () => {
                         View Event
                       </Link>
                       
-                      {new Date(reg.event_date) < new Date() && (
+                      {/* Dynamic Feedback Form Button */}
+                      {feedbackStatus[reg.event_id]?.hasForm && !feedbackStatus[reg.event_id]?.hasSubmitted && (
+                        <Link
+                          to={`/events/${reg.event_id}/feedback-form`}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                        >
+                          📝 Give Feedback
+                        </Link>
+                      )}
+                      
+                      {feedbackStatus[reg.event_id]?.hasForm && feedbackStatus[reg.event_id]?.hasSubmitted && (
+                        <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium">
+                          ✓ Feedback Submitted
+                        </div>
+                      )}
+                      
+                      {/* Legacy Feedback (for events without dynamic form) */}
+                      {!feedbackStatus[reg.event_id]?.hasForm && new Date(reg.event_date) < new Date() && (
                         <Link
                           to={`/events/${reg.event_id}/feedback`}
                           className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
                         >
-                          Give Feedback
+                          Give Feedback (Legacy)
                         </Link>
                       )}
                       

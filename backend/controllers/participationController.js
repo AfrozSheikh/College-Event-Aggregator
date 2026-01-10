@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const multer = require('multer');
 const path = require('path');
+const emailService = require('../services/emailService');
 
 
 // Configure multer for document upload
@@ -73,6 +74,24 @@ const participationController = {
                 };
                 
                 await pool.query('INSERT INTO participations SET ?', participationData);
+                
+                // Send registration confirmation email
+                try {
+                    const [eventDetails] = await pool.query(
+                        'SELECT * FROM events WHERE id = ?',
+                        [eventId]
+                    );
+                    
+                    if (eventDetails.length > 0) {
+                        await emailService.sendRegistrationConfirmation(
+                            eventDetails[0],
+                            { name, email }
+                        );
+                    }
+                } catch (emailError) {
+                    console.error('Failed to send registration confirmation email:', emailError);
+                    // Don't fail the request if email fails
+                }
                 
                 res.json({ message: 'Successfully registered for the event!' });
             });

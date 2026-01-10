@@ -18,6 +18,7 @@ const EventForm = () => {
     eventDate: '',
     eventTime: '',
     organizedBy: '',
+    organizerDepartment: 'CSE',
     rulesEligibility: '',
     maxParticipants: '',
     registrationFees: '0',
@@ -25,6 +26,8 @@ const EventForm = () => {
   });
   
   const [uploadedImages, setUploadedImages] = useState([]);
+  const [paymentQr, setPaymentQr] = useState(null);
+  const [paymentQrPreview, setPaymentQrPreview] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,6 +48,7 @@ const EventForm = () => {
         eventDate: event.event_date.split('T')[0],
         eventTime: event.event_time,
         organizedBy: event.organized_by,
+        organizerDepartment: event.organizer_department || 'CSE',
         rulesEligibility: event.rules_eligibility,
         maxParticipants: event.max_participants,
         registrationFees: event.registration_fees
@@ -71,6 +75,23 @@ const EventForm = () => {
   const removeImage = (index) => {
     setUploadedImages(uploadedImages.filter((_, i) => i !== index));
   };
+  
+  const handleQrUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('QR code image must be less than 5MB');
+        return;
+      }
+      setPaymentQr(file);
+      setPaymentQrPreview(URL.createObjectURL(file));
+    }
+  };
+  
+  const removeQr = () => {
+    setPaymentQr(null);
+    setPaymentQrPreview(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,6 +110,10 @@ const EventForm = () => {
         formDataToSend.append('images', image);
       }
     });
+    
+    if (paymentQr) {
+      formDataToSend.append('paymentQr', paymentQr);
+    }
 
     try {
       if (isEdit) {
@@ -109,9 +134,15 @@ const EventForm = () => {
   };
 
   const categories = [
-    'technical', 'cultural', 'sports', 'workshop', 
-    'seminar', 'competition', 'conference', 'other'
+    'technical', 'cultural', 'sports', 
+    'workshop', 'seminar', 'competition', 'conference'
   ];
+  
+  const departments = [
+    'CSE', 'IT', 'AI', 'EE', 'MECH', 'CIVIL', 'ENTC', 'Chemical', 'Robotics'
+  ];
+
+  if (loading) return <div className="text-center py-12">Saving...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -137,6 +168,8 @@ const EventForm = () => {
                   type="text"
                   name="title"
                   required
+                  minLength="5"
+                  maxLength="200"
                   value={formData.title}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -151,6 +184,8 @@ const EventForm = () => {
                 <textarea
                   name="description"
                   required
+                  minLength="20"
+                  maxLength="5000"
                   rows={4}
                   value={formData.description}
                   onChange={handleChange}
@@ -237,17 +272,21 @@ const EventForm = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Organized By *
+                  Organizing Department *
                 </label>
-                <input
-                  type="text"
-                  name="organizedBy"
+                <select
+                  name="organizerDepartment"
                   required
-                  value={formData.organizedBy}
+                  value={formData.organizerDepartment}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Organization/department name"
-                />
+                >
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -296,6 +335,50 @@ const EventForm = () => {
                   />
                 </div>
               </div>
+              
+              {/* Payment QR Code Section - Only show if fees > 0 */}
+              {parseFloat(formData.registrationFees) > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment QR Code <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Upload a QR code for students to make payments
+                  </p>
+                  
+                  {!paymentQrPreview ? (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                      <input
+                        type="file"
+                        id="qr-upload"
+                        accept="image/jpeg,image/jpg,image/png"
+                        onChange={handleQrUpload}
+                        className="hidden"
+                      />
+                      <label htmlFor="qr-upload" className="cursor-pointer inline-flex flex-col items-center">
+                        <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span className="text-sm text-gray-600">Click to upload QR code</span>
+                        <span className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative inline-block">
+                      <img src={paymentQrPreview} alt="Payment QR" className="w-48 h-48 object-contain border rounded-lg" />
+                      <button
+                        type="button"
+                        onClick={removeQr}
+                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Image Upload */}

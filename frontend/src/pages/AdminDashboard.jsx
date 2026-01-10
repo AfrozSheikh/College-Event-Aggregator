@@ -76,6 +76,18 @@ const AdminDashboard = () => {
       toast.error('Failed to reject faculty');
     }
   };
+  
+  const handleDeleteEvent = async (eventId, eventTitle) => {
+    if (!window.confirm(`Are you sure you want to delete "${eventTitle}"?`)) return;
+    
+    try {
+      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      toast.success('Event deleted successfully');
+      fetchDashboardData(); // Refresh data
+    } catch (error) {
+      toast.error('Failed to delete event');
+    }
+  };
 
   if (loading) {
     return (
@@ -191,7 +203,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Total Feedback */}
-          <div className="bg-white rounded-xl shadow p-6">
+          {/* <div className="bg-white rounded-xl shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-pink-100 text-pink-600">
                 <ChatBubbleLeftRightIcon className="h-8 w-8" />
@@ -201,10 +213,10 @@ const AdminDashboard = () => {
                 <p className="text-2xl font-bold">{stats.totalFeedback}</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Growth Indicator */}
-          <div className="bg-white rounded-xl shadow p-6">
+          {/* <div className="bg-white rounded-xl shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-teal-100 text-teal-600">
                 <ArrowTrendingUpIcon className="h-8 w-8" />
@@ -214,7 +226,7 @@ const AdminDashboard = () => {
                 <p className="text-2xl font-bold text-green-600">Active</p>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -275,29 +287,47 @@ const AdminDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {events.map(event => (
-                  <Link
-                    key={event.id}
-                    to={`/events/${event.id}`}
-                    className="block p-4 border rounded-lg hover:bg-gray-50 transition"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium text-gray-800">{event.title}</h3>
-                        <p className="text-sm text-gray-500">
-                          {new Date(event.event_date).toLocaleDateString()} • {event.location}
-                        </p>
+                {events.map(event => {
+                  const isPastEvent = new Date(event.event_date) < new Date();
+                  
+                  return (
+                    <div
+                      key={event.id}
+                      className="p-4 border rounded-lg hover:bg-gray-50 transition"
+                    >
+                      <div className="flex justify-between items-start">
+                        <Link to={`/events/${event.id}`} className="flex-1">
+                          <div>
+                            <h3 className="font-medium text-gray-800">{event.title}</h3>
+                            <p className="text-sm text-gray-500">
+                              {new Date(event.event_date).toLocaleDateString()} • {event.location}
+                            </p>
+                          </div>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            isPastEvent
+                              ? 'bg-gray-100 text-gray-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {isPastEvent ? 'Past' : 'Upcoming'}
+                          </span>
+                          {isPastEvent && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteEvent(event.id, event.title);
+                              }}
+                              className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        new Date(event.event_date) >= new Date()
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {new Date(event.event_date) >= new Date() ? 'Upcoming' : 'Past'}
-                      </span>
                     </div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

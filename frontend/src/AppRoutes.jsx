@@ -18,6 +18,7 @@ import ReportViewer from './pages/ReportViewer';
 import UserManagement from './pages/UserManagement';
 import MyRegistrations from './pages/MyRegistrations';
 import EventParticipants from './pages/EventParticipants';
+import DynamicFeedbackForm from './components/DynamicFeedbackForm';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -134,6 +135,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['student']}>
             <FeedbackForm />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/events/:id/feedback-form"
+        element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <Layout>
+              <DynamicFeedbackForm />
+            </Layout>
           </ProtectedRoute>
         }
       />
