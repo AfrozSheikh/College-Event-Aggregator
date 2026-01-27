@@ -18,6 +18,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [registrationStatus, setRegistrationStatus] = useState({});
+  const [feedbackStatus, setFeedbackStatus] = useState({});
 
   useEffect(() => {
     fetchEvents();
@@ -36,6 +37,12 @@ const StudentDashboard = () => {
       checkRegistrationStatus();
     }
   }, [user, futureEvents]);
+
+  useEffect(() => {
+    if (user && pastEvents.length > 0) {
+      checkFeedbackStatus();
+    }
+  }, [user, pastEvents]);
   
   const checkRegistrationStatus = async () => {
     try {
@@ -49,6 +56,21 @@ const StudentDashboard = () => {
       setRegistrationStatus(statusMap);
     } catch (error) {
       console.error('Error checking registration status:', error);
+    }
+  };
+
+  const checkFeedbackStatus = async () => {
+    try {
+      const statusMap = {};
+      for (const event of pastEvents) {
+        const response = await axios.get(
+          `http://localhost:5000/api/feedback-forms/check/${event.id}/${user.id}`
+        );
+        statusMap[event.id] = response.data.hasSubmitted;
+      }
+      setFeedbackStatus(statusMap);
+    } catch (error) {
+      console.error('Error checking feedback status:', error);
     }
   };
 
@@ -261,10 +283,20 @@ const StudentDashboard = () => {
                           View Details
                         </Link>
                         <Link
-                          to={`/events/${event.id}/feedback`}
-                          className="px-4 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition"
+                          to={`/events/${event.id}/feedback-form`}
+                          className={`px-4 py-2 text-white text-sm rounded-lg transition ${
+                            feedbackStatus[event.id]
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-yellow-600 hover:bg-yellow-700'
+                          }`}
+                          onClick={(e) => {
+                            if (feedbackStatus[event.id]) {
+                              e.preventDefault();
+                              toast.error('You have already submitted feedback for this event');
+                            }
+                          }}
                         >
-                          Submit Feedback
+                          {feedbackStatus[event.id] ? 'Feedback Submitted' : 'Submit Feedback'}
                         </Link>
                       </div>
                     </div>

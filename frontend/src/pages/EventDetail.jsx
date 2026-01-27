@@ -34,8 +34,8 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   
   const checkFeedbackStatus = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/feedback/check/${id}/${user.id}`);
-      setHasGivenFeedback(response.data.hasGivenFeedback);
+      const response = await axios.get(`http://localhost:5000/api/feedback-forms/check/${id}/${user.id}`);
+      setHasGivenFeedback(response.data.hasSubmitted);
     } catch (error) {
       console.error('Error checking feedback status:', error);
     }
@@ -179,7 +179,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
               )} */}
               {canGiveFeedback && (
   <Link
-    to={`/events/${id}/feedback`}
+    to={`/events/${id}/feedback-form`}
     className={`px-6 py-3 rounded-lg font-medium transition ${
       hasGivenFeedback
         ? 'bg-gray-400 text-white cursor-not-allowed'
@@ -466,26 +466,18 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Event Feedback</h3>
                 <div className="flex items-center">
-                  <span className="text-gray-600 mr-3">
-                    {feedback.length + (event.dynamicFeedbackResponses?.length || 0)} total reviews
+                  <span className="text-gray-600">
+                    {event.dynamicFeedbackResponses?.length || 0} total responses
                   </span>
-                  {feedback.length > 0 && (
-                    <div className="flex items-center">
-                      <span className="text-yellow-400 text-xl">★</span>
-                      <span className="ml-1 font-semibold">
-                        {feedback.reduce((acc, fb) => acc + fb.rating, 0) / feedback.length}/5
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
               
-              {feedback.length === 0 && (!event.dynamicFeedbackResponses || event.dynamicFeedbackResponses.length === 0) ? (
+              {(!event.dynamicFeedbackResponses || event.dynamicFeedbackResponses.length === 0) ? (
                 <div className="text-center py-12">
                   <p className="text-gray-500">No feedback yet</p>
                   {isPastEvent && user?.role === 'student' && (
                     <Link
-                      to={`/events/${id}/feedback`}
+                      to={`/events/${id}/feedback-form`}
                       className="mt-4 inline-block px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
                     >
                       Be the first to give feedback
@@ -495,88 +487,45 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
               ) : (
                 <div className="space-y-6">
                   {/* Dynamic Feedback Responses */}
-                  {event.dynamicFeedbackResponses && event.dynamicFeedbackResponses.length > 0 && (
-                    <>
-                      <div className="flex items-center gap-2 mb-4">
-                        <h4 className="text-lg font-semibold text-gray-800"> Feedback Responses</h4>
-                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                          {event.dynamicFeedbackResponses.length} responses
-                        </span>
-                      </div>
-                      {event.dynamicFeedbackResponses.map((response) => (
-                        <div key={response.id} className="border border-green-200 rounded-lg p-6 bg-green-50">
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <p className="font-semibold text-gray-800">{response.student_name}</p>
-                              <p className="text-sm text-gray-600">{response.student_email}</p>
-                              <p className="text-sm text-gray-500">
-                                {new Date(response.submitted_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-3 bg-white rounded-lg p-4">
-                            {response.answers && response.answers.map((answer) => (
-                              <div key={answer.id} className="border-l-4 border-blue-400 pl-4 py-2">
-                                <p className="font-medium text-gray-800">{answer.question_text}</p>
-                                <p className="text-gray-600 mt-1">
-                                  {answer.question_type === 'rating' && (
-                                    <span className="flex items-center">
-                                      <span className="text-yellow-400 mr-2">
-                                        {'★'.repeat(parseInt(answer.answer_text) || 0)}
-                                        {'☆'.repeat(5 - (parseInt(answer.answer_text) || 0))}
-                                      </span>
-                                      {answer.answer_text}/5
-                                    </span>
-                                  )}
-                                  {answer.question_type !== 'rating' && (answer.answer_text || 'No answer provided')}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <h4 className="text-lg font-semibold text-gray-800">Feedback Responses</h4>
+                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                      {event.dynamicFeedbackResponses.length} responses
+                    </span>
+                  </div>
+                  {event.dynamicFeedbackResponses.map((response) => (
+                    <div key={response.id} className="border border-green-200 rounded-lg p-6 bg-green-50">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <p className="font-semibold text-gray-800">{response.student_name}</p>
+                          <p className="text-sm text-gray-600">{response.student_email}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(response.submitted_at).toLocaleDateString()}
+                          </p>
                         </div>
-                      ))}
-                    </>
-                  )}
-                  
-                  {/* Legacy Feedback */}
-                  {feedback.length > 0 && (
-                    <>
-                      <div className="flex items-center gap-2 mb-4 mt-8">
-                        <h4 className="text-lg font-semibold text-gray-800">Rating-Based Feedback</h4>
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded">
-                          {feedback.length} reviews
-                        </span>
                       </div>
-                      {feedback.map((fb) => (
-                        <div key={fb.id} className="border border-gray-200 rounded-lg p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <p className="font-semibold text-gray-800">{fb.student_name}</p>
-                              <p className="text-sm text-gray-500">
-                                {new Date(fb.submitted_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="text-yellow-400">★</span>
-                              <span className="ml-1 font-medium">{fb.rating}/5</span>
-                            </div>
+                      
+                      <div className="space-y-3 bg-white rounded-lg p-4">
+                        {response.answers && response.answers.map((answer) => (
+                          <div key={answer.id} className="border-l-4 border-blue-400 pl-4 py-2">
+                            <p className="font-medium text-gray-800">{answer.question_text}</p>
+                            <p className="text-gray-600 mt-1">
+                              {answer.question_type === 'rating' && (
+                                <span className="flex items-center">
+                                  <span className="text-yellow-400 mr-2">
+                                    {'★'.repeat(parseInt(answer.answer_text) || 0)}
+                                    {'☆'.repeat(5 - (parseInt(answer.answer_text) || 0))}
+                                  </span>
+                                  {answer.answer_text}/5
+                                </span>
+                              )}
+                              {answer.question_type !== 'rating' && (answer.answer_text || 'No answer provided')}
+                            </p>
                           </div>
-                          
-                          {fb.comment && (
-                            <p className="text-gray-700 mb-4">{fb.comment}</p>
-                          )}
-                          
-                          {fb.suggestions && (
-                            <div className="bg-blue-50 border border-blue-100 rounded p-4">
-                              <p className="text-sm font-medium text-blue-800 mb-1">Suggestions:</p>
-                              <p className="text-blue-700">{fb.suggestions}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </>
-                  )}
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

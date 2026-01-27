@@ -237,11 +237,13 @@ const Signup = () => {
                 type="password"
                 name="password"
                 required
+                minLength="8"
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 placeholder="••••••••"
               />
+              <p className="text-xs text-gray-500 mt-1">Minimum 8 characters required</p>
             </div>
 
             <div>
@@ -252,6 +254,7 @@ const Signup = () => {
                 type="password"
                 name="confirmPassword"
                 required
+                minLength="8"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
