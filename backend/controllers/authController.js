@@ -50,10 +50,89 @@ const authController = {
         try {
             const { name, email, phone, password, role, ...roleData } = req.body;
             
+            // ── Server-side validation ──
+            const validationErrors = [];
+
+            // Name
+            if (!name || !name.trim()) {
+                validationErrors.push('Full name is required');
+            } else if (name.trim().length < 2 || name.trim().length > 100) {
+                validationErrors.push('Name must be between 2 and 100 characters');
+            } else if (!/^[a-zA-Z\s.'\-]+$/.test(name.trim())) {
+                validationErrors.push('Name can only contain letters, spaces, dots, hyphens, and apostrophes');
+            }
+
+            // Email
+            if (!email || !email.trim()) {
+                validationErrors.push('Email address is required');
+            } else if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email.trim())) {
+                validationErrors.push('Please enter a valid email address');
+            }
+
+            // Phone
+            if (!phone || !phone.trim()) {
+                validationErrors.push('Phone number is required');
+            } else {
+                const cleanPhone = phone.replace(/[\s\-+]/g, '');
+                if (!/^(91)?[6-9]\d{9}$/.test(cleanPhone) && !/^\d{10}$/.test(cleanPhone)) {
+                    validationErrors.push('Please enter a valid 10-digit Indian phone number');
+                }
+            }
+
+            // Password
+            if (!password) {
+                validationErrors.push('Password is required');
+            } else if (password.length < 8) {
+                validationErrors.push('Password must be at least 8 characters long');
+            } else {
+                if (!/[A-Z]/.test(password)) validationErrors.push('Password must contain at least one uppercase letter');
+                if (!/[a-z]/.test(password)) validationErrors.push('Password must contain at least one lowercase letter');
+                if (!/[0-9]/.test(password)) validationErrors.push('Password must contain at least one digit');
+                if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) validationErrors.push('Password must contain at least one special character');
+            }
+
+            // Role
+            if (!role || !['student', 'faculty'].includes(role)) {
+                validationErrors.push('Please select a valid role (student or faculty)');
+            }
+
+            // Role-specific validations
+            if (role === 'student') {
+                if (!roleData.collegeName || !roleData.collegeName.trim()) {
+                    validationErrors.push('College name is required');
+                } else if (roleData.collegeName.trim().length < 3) {
+                    validationErrors.push('College name must be at least 3 characters');
+                }
+                if (!roleData.course || !roleData.course.trim()) {
+                    validationErrors.push('Course is required');
+                } else if (roleData.course.trim().length < 2) {
+                    validationErrors.push('Course must be at least 2 characters');
+                }
+                if (!roleData.year) {
+                    validationErrors.push('Year is required');
+                }
+            } else if (role === 'faculty') {
+                if (!roleData.facultyId || !roleData.facultyId.trim()) {
+                    validationErrors.push('Faculty ID is required');
+                } else if (roleData.facultyId.trim().length < 3) {
+                    validationErrors.push('Faculty ID must be at least 3 characters');
+                }
+                if (!roleData.department || !roleData.department.trim()) {
+                    validationErrors.push('Department is required');
+                } else if (roleData.department.trim().length < 2) {
+                    validationErrors.push('Department must be at least 2 characters');
+                }
+            }
+
+            if (validationErrors.length > 0) {
+                return res.status(400).json({ error: validationErrors.join('. ') });
+            }
+            // ── End validation ──
+            
             // Check if user exists
             const [existing] = await pool.query(
                 'SELECT id FROM users WHERE email = ?',
-                [email]
+                [email.trim().toLowerCase()]
             );
             
             if (existing.length > 0) {
@@ -68,9 +147,9 @@ const authController = {
             
             // Prepare user data
             const userData = {
-                name,
-                email,
-                phone,
+                name: name.trim(),
+                email: email.trim().toLowerCase(),
+                phone: phone.trim(),
                 password: hashedPassword,
                 role,
                 status
@@ -78,11 +157,11 @@ const authController = {
             
             // Add role-specific fields
             if (role === 'faculty') {
-                userData.faculty_id = roleData.facultyId;
-                userData.department = roleData.department;
+                userData.faculty_id = roleData.facultyId.trim();
+                userData.department = roleData.department.trim();
             } else if (role === 'student') {
-                userData.college_name = roleData.collegeName;
-                userData.course = roleData.course;
+                userData.college_name = roleData.collegeName.trim();
+                userData.course = roleData.course.trim();
                 userData.year = roleData.year;
             }
             

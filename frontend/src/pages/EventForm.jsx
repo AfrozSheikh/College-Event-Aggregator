@@ -26,6 +26,7 @@ const EventForm = () => {
   });
   
   const [uploadedImages, setUploadedImages] = useState([]);
+  const [removedImageIds, setRemovedImageIds] = useState([]);
   const [paymentQr, setPaymentQr] = useState(null);
   const [paymentQrPreview, setPaymentQrPreview] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,6 +55,10 @@ const EventForm = () => {
         registrationFees: event.registration_fees
       });
       setUploadedImages(event.images || []);
+      // Show existing payment QR if present
+      if (event.payment_qr_code) {
+        setPaymentQrPreview(`http://localhost:5000/${event.payment_qr_code}`);
+      }
     } catch (error) {
       toast.error('Failed to fetch event');
       navigate('/events');
@@ -73,6 +78,11 @@ const EventForm = () => {
   };
 
   const removeImage = (index) => {
+    const imageToRemove = uploadedImages[index];
+    // If this is an existing image from the database (has an id), track its id for removal
+    if (imageToRemove && !(imageToRemove instanceof File) && imageToRemove.id) {
+      setRemovedImageIds(prev => [...prev, imageToRemove.id]);
+    }
     setUploadedImages(uploadedImages.filter((_, i) => i !== index));
   };
   
@@ -105,6 +115,7 @@ const EventForm = () => {
     });
     formDataToSend.append('createdBy', user.id);
     
+    // Append only new File objects as images
     uploadedImages.forEach(image => {
       if (image instanceof File) {
         formDataToSend.append('images', image);
@@ -115,9 +126,16 @@ const EventForm = () => {
       formDataToSend.append('paymentQr', paymentQr);
     }
 
+    // For edit mode, also send the list of removed image IDs
+    if (isEdit && removedImageIds.length > 0) {
+      formDataToSend.append('removedImageIds', JSON.stringify(removedImageIds));
+    }
+
     try {
       if (isEdit) {
-        await axios.put(`http://localhost:5000/api/events/${id}`, formData);
+        await axios.put(`http://localhost:5000/api/events/${id}`, formDataToSend, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         toast.success('Event updated successfully');
       } else {
         await axios.post('http://localhost:5000/api/events', formDataToSend, {

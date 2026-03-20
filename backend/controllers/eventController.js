@@ -224,58 +224,99 @@ const eventController = {
     },
     
     // Update event
-    // Update event function
-updateEvent: async (req, res) => {
-    try {
-        const { id } = req.params;
-        const eventData = req.body;
-        
-        // Check if event exists
-        const [events] = await pool.query(
-            'SELECT id FROM events WHERE id = ?',
-            [id]
-        );
-        
-        if (events.length === 0) {
-            return res.status(404).json({ error: 'Event not found' });
+    updateEvent: async (req, res) => {
+        try {
+            upload(req, res, async function (err) {
+                if (err) {
+                    return res.status(400).json({ error: err.message });
+                }
+
+                const { id } = req.params;
+                const eventData = req.body;
+
+                // Check if event exists
+                const [events] = await pool.query(
+                    'SELECT id FROM events WHERE id = ?',
+                    [id]
+                );
+
+                if (events.length === 0) {
+                    return res.status(404).json({ error: 'Event not found' });
+                }
+
+                // Map frontend field names to database column names
+                const mappedData = {};
+
+                if (eventData.title !== undefined) mappedData.title = eventData.title;
+                if (eventData.description !== undefined) mappedData.description = eventData.description;
+                if (eventData.category !== undefined) mappedData.category = eventData.category;
+                if (eventData.location !== undefined) mappedData.location = eventData.location;
+
+                // Map date and time fields
+                if (eventData.eventDate !== undefined) mappedData.event_date = eventData.eventDate;
+                if (eventData.eventTime !== undefined) mappedData.event_time = eventData.eventTime;
+
+                // Map other fields
+                if (eventData.organizedBy !== undefined) mappedData.organized_by = eventData.organizedBy;
+                if (eventData.organizerDepartment !== undefined) {
+                    mappedData.organizer_department = eventData.organizerDepartment;
+                    if (!eventData.organizedBy) {
+                        mappedData.organized_by = eventData.organizerDepartment;
+                    }
+                }
+                if (eventData.rulesEligibility !== undefined) mappedData.rules_eligibility = eventData.rulesEligibility;
+                if (eventData.maxParticipants !== undefined) {
+                    const mp = eventData.maxParticipants;
+                    mappedData.max_participants = (mp === '' || mp === 'null' || mp === null || mp === undefined || mp === '0') ? null : parseInt(mp, 10);
+                }
+                if (eventData.registrationFees !== undefined) mappedData.registration_fees = eventData.registrationFees;
+
+                // Handle payment QR code update
+                if (req.files && req.files['paymentQr'] && req.files['paymentQr'].length > 0) {
+                    mappedData.payment_qr_code = req.files['paymentQr'][0].path;
+                }
+
+                // Update event fields
+                if (Object.keys(mappedData).length > 0) {
+                    await pool.query(
+                        'UPDATE events SET ? WHERE id = ?',
+                        [mappedData, id]
+                    );
+                }
+
+                // Handle removed images
+                if (eventData.removedImageIds) {
+                    let removedIds;
+                    try {
+                        removedIds = JSON.parse(eventData.removedImageIds);
+                    } catch (e) {
+                        removedIds = [];
+                    }
+                    if (Array.isArray(removedIds) && removedIds.length > 0) {
+                        await pool.query(
+                            'DELETE FROM event_gallery WHERE id IN (?) AND event_id = ?',
+                            [removedIds, id]
+                        );
+                    }
+                }
+
+                // Handle new image uploads
+                if (req.files && req.files['images'] && req.files['images'].length > 0) {
+                    for (const file of req.files['images']) {
+                        await pool.query(
+                            'INSERT INTO event_gallery (event_id, image_path) VALUES (?, ?)',
+                            [id, file.path]
+                        );
+                    }
+                }
+
+                res.json({ message: 'Event updated successfully' });
+            });
+        } catch (error) {
+            console.error('Update event error:', error);
+            res.status(500).json({ error: 'Server error' });
         }
-        
-        // ✅ FIX: Map frontend field names to database column names
-        const mappedData = {};
-        
-        if (eventData.title !== undefined) mappedData.title = eventData.title;
-        if (eventData.description !== undefined) mappedData.description = eventData.description;
-        if (eventData.category !== undefined) mappedData.category = eventData.category;
-        if (eventData.location !== undefined) mappedData.location = eventData.location;
-        
-        // Map date and time fields
-        if (eventData.eventDate !== undefined) mappedData.event_date = eventData.eventDate;
-        if (eventData.eventTime !== undefined) mappedData.event_time = eventData.eventTime;
-        
-        // Map other fields
-        if (eventData.organizedBy !== undefined) mappedData.organized_by = eventData.organizedBy;
-        if (eventData.organizerDepartment !== undefined) {
-            mappedData.organizer_department = eventData.organizerDepartment;
-            if (!eventData.organizedBy) {
-                mappedData.organized_by = eventData.organizerDepartment;
-            }
-        }
-        if (eventData.rulesEligibility !== undefined) mappedData.rules_eligibility = eventData.rulesEligibility;
-        if (eventData.maxParticipants !== undefined) mappedData.max_participants = eventData.maxParticipants;
-        if (eventData.registrationFees !== undefined) mappedData.registration_fees = eventData.registrationFees;
-        
-        // Update event with mapped data
-        const [result] = await pool.query(
-            'UPDATE events SET ? WHERE id = ?',
-            [mappedData, id]
-        );
-        
-        res.json({ message: 'Event updated successfully' });
-    } catch (error) {
-        console.error('Update event error:', error);
-        res.status(500).json({ error: 'Server error' });
-    }
-},
+    },
     
     // Delete event
     deleteEvent: async (req, res) => {

@@ -1,8 +1,8 @@
 const nodemailer = require('nodemailer');
 
 // ⚠️ IMPORTANT: Replace these with your actual Gmail credentials
-const EMAIL_USER = 'afrozsheikh1112@gmail.com'; 
-const EMAIL_PASSWORD = 'abcdefghejklmnop';    
+const EMAIL_USER = 'kodeneurons@gmail.com'; 
+const EMAIL_PASSWORD = 'wwtzenuaowdlvqwj';    
 
 
 
