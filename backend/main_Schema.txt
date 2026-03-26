@@ -5,6 +5,19 @@
 -- Last Updated: January 2026
 -- Description: Complete schema with all tables, indexes, and constraints
 -- ============================================================================
+--
+-- SETUP INSTRUCTIONS (Run these FIRST in MySQL Workbench before importing schema)
+-- Step 1: Set root password to 'root'
+--         ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+--         FLUSH PRIVILEGES;
+--
+-- Step 2: Backend .env credentials used:
+--         DB_HOST=localhost
+--         DB_USER=root
+--         DB_PASSWORD=root
+--         DB_NAME=college_event_system
+--         PORT=5000
+-- ============================================================================
 
 -- Create database
 CREATE DATABASE IF NOT EXISTS college_event_system;
