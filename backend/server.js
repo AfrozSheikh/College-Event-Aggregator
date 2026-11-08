@@ -18,10 +18,8 @@ const pool = require('./config/db');
 
 
 // Middleware
-app.use(cors({
-    origin: 'http://localhost:5173',
-    credentials: true
-}));
+// Allow requests from any origin (frontend is hosted separately, e.g. on Vercel)
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
