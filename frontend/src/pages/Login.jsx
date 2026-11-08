@@ -12,6 +12,9 @@ import ThemeToggle from '@/components/common/ThemeToggle';
 import { IconInput, PasswordInput } from '@/components/FormHelpers';
 import { cn, formatTime, getCategoryStyle } from '@/lib/utils';
 
+
+// Campus photo shown on the sign-in page
+const CAMPUS_IMAGE = '/iem-main.jpg';
 const BOARD_LIMIT = 6;
 
 /** Real upcoming events from the public endpoint, pinned like notices. Fails quietly. */
@@ -38,7 +41,13 @@ const UpcomingBoard = () => {
 
   return (
     <aside className="bg-card hidden border-l lg:flex lg:min-h-screen lg:flex-col">
-      <div className="flex flex-1 flex-col px-10 py-12 xl:px-16">
+      <figure className="relative h-72 shrink-0 overflow-hidden xl:h-80">
+        <img src={CAMPUS_IMAGE} alt="Institute of Engineering and Management campus building" className="h-full w-full object-cover" />
+        <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-10 pt-10 pb-4 text-sm text-white xl:px-16">
+          Institute of Engineering and Management, Kolkata
+        </figcaption>
+      </figure>
+      <div className="flex flex-1 flex-col px-10 py-10 xl:px-16">
         <div className="flex items-baseline justify-between border-b pb-4">
           <h2 className="text-2xl font-medium">
             On the board <em className="text-muted-foreground font-normal">right now</em>
@@ -148,6 +157,11 @@ const Login = () => {
 
         <div className="flex flex-1 items-center px-5 pb-16 sm:px-10">
           <FadeIn className="mx-auto w-full max-w-sm">
+            <img
+              src={CAMPUS_IMAGE}
+              alt="Institute of Engineering and Management campus building"
+              className="mb-8 h-40 w-full rounded-lg border object-cover sm:h-48 lg:hidden"
+            />
             <h1 className="text-[2.4rem] leading-[1.1] font-medium tracking-tight">
               Sign in to the <em className="text-primary">noticeboard</em>.
             </h1>

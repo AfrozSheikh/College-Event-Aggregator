@@ -18,13 +18,13 @@ export function CollegeLogo({ className }) {
 
 /**
  * Brand block used in the sidebar, the auth pages and the 404 page.
- *   <Brand />          logo + "College Events" wordmark underneath
+ *   <Brand />          logo + institute name underneath
  *   <Brand compact />  logo only, smaller (mobile header)
  */
 export default function Brand({ to = '/', className, subtitle = true, compact = false }) {
   if (compact) {
     return (
-      <Link to={to} className={cn('flex items-center', className)} aria-label="College Events home">
+      <Link to={to} className={cn('flex items-center', className)} aria-label="Institute of Engineering and Management – home">
         <CollegeLogo className="h-9" />
       </Link>
     );
@@ -34,8 +34,10 @@ export default function Brand({ to = '/', className, subtitle = true, compact = 
     <Link to={to} className={cn('flex flex-col items-start gap-2.5', className)}>
       <CollegeLogo className="h-14" />
       <span className="leading-none">
-        <span className="block font-serif text-[1.15rem] font-medium tracking-tight">College Events</span>
-        {subtitle && <span className="meta mt-1 block">the campus noticeboard</span>}
+        <span className="block max-w-[13rem] font-serif text-[1.05rem] leading-tight font-medium tracking-tight">
+          Institute of Engineering and Management
+        </span>
+        {subtitle && <span className="meta mt-1.5 block">the campus noticeboard</span>}
       </span>
     </Link>
   );
