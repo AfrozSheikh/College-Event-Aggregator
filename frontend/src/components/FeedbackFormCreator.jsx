@@ -130,7 +130,7 @@ const FeedbackFormCreator = ({ eventId, onSaveComplete }) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
 
-      await axios.post('http://localhost:5000/api/feedback-forms', {
+      await axios.post('https://college-event-aggregator-i3la.onrender.com/api/feedback-forms', {
         eventId,
         title: formTitle,
         description: formDescription,

@@ -142,24 +142,24 @@ const MyFeedback = () => {
       console.log('Fetching feedback for user ID:', user.id);
 
       // Fetch legacy feedback
-      const legacyResponse = await axios.get(`http://localhost:5000/api/feedback/user/${user.id}`);
+      const legacyResponse = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback/user/${user.id}`);
       console.log('Legacy feedback API response:', legacyResponse.data);
       setFeedbackList(legacyResponse.data);
 
       // Fetch dynamic feedback responses - we need to get user's registrations first
       try {
-        const registrationsResponse = await axios.get(`http://localhost:5000/api/participations/student/${user.id}`);
+        const registrationsResponse = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/participations/student/${user.id}`);
         const registrations = registrationsResponse.data;
 
         // For each registration, check if there's a dynamic feedback response
         const dynamicResponses = [];
         for (const reg of registrations) {
           try {
-            const formResponse = await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
+            const formResponse = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/event/${reg.event_id}`);
             const form = formResponse.data;
 
             // Check if student submitted response
-            const responsesResponse = await axios.get(`http://localhost:5000/api/feedback-forms/${form.id}/responses`);
+            const responsesResponse = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/${form.id}/responses`);
             const userResponse = responsesResponse.data.find(r => r.student_id === user.id);
 
             if (userResponse) {

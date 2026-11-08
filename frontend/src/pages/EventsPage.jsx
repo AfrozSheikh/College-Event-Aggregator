@@ -62,7 +62,7 @@ const EventsPage = () => {
       const statusMap = {};
       for (const event of filteredEvents) {
         const response = await axios.get(
-          `http://localhost:5000/api/participations/check/${event.id}/${user.id}`
+          `https://college-event-aggregator-i3la.onrender.com/api/participations/check/${event.id}/${user.id}`
         );
         statusMap[event.id] = response.data.isRegistered;
       }
@@ -74,7 +74,7 @@ const EventsPage = () => {
 
   const fetchEvents = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/events');
+      const response = await axios.get('https://college-event-aggregator-i3la.onrender.com/api/events');
       setEvents(response.data);
     } catch {
       toast.error('Failed to load events');
@@ -118,7 +118,7 @@ const EventsPage = () => {
 
   const handleDeleteEvent = async (eventId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchEvents();
     } catch {

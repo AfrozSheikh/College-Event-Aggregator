@@ -69,9 +69,9 @@ const AdminDashboard = () => {
     try {
       // Fetch all data in parallel
       const [facultyRes, eventsRes, statsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/users/pending'),
-        axios.get('http://localhost:5000/api/events'),
-        axios.get('http://localhost:5000/api/stats/dashboard')
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/users/pending'),
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/events'),
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/stats/dashboard')
       ]);
 
       setPendingFaculty(facultyRes.data);
@@ -88,7 +88,7 @@ const AdminDashboard = () => {
 
   const approveFaculty = async (facultyId) => {
     try {
-      await axios.put(`http://localhost:5000/api/users/${facultyId}/approve`);
+      await axios.put(`https://college-event-aggregator-i3la.onrender.com/api/users/${facultyId}/approve`);
       toast.success('Faculty approved successfully');
       fetchDashboardData(); // Refresh data
     } catch {
@@ -98,7 +98,7 @@ const AdminDashboard = () => {
 
   const rejectFaculty = async (facultyId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/users/${facultyId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/users/${facultyId}`);
       toast.success('Faculty rejected');
       fetchDashboardData(); // Refresh data
     } catch {
@@ -109,7 +109,7 @@ const AdminDashboard = () => {
   // Called after the user confirms in the ConfirmDialog (replaces window.confirm)
   const handleDeleteEvent = async (eventId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchDashboardData(); // Refresh data
     } catch {

@@ -53,7 +53,7 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/users/all');
+      const response = await axios.get('https://college-event-aggregator-i3la.onrender.com/api/users/all');
       setUsers(response.data);
       setFilteredUsers(response.data);
     } catch {
@@ -90,7 +90,7 @@ const UserManagement = () => {
 
   const approveUser = async (userId) => {
     try {
-      await axios.put(`http://localhost:5000/api/users/${userId}/approve`);
+      await axios.put(`https://college-event-aggregator-i3la.onrender.com/api/users/${userId}/approve`);
       toast.success('User approved successfully');
       fetchUsers();
     } catch {
@@ -101,7 +101,7 @@ const UserManagement = () => {
   // Called after confirmation in ConfirmDialog (replaces window.confirm)
   const deleteUser = async (userId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/users/${userId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/users/${userId}`);
       toast.success('User deleted successfully');
       fetchUsers();
     } catch {

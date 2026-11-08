@@ -21,7 +21,7 @@ const UpcomingBoard = () => {
   useEffect(() => {
     let cancelled = false;
     axios
-      .get('http://localhost:5000/api/events/type/future')
+      .get('https://college-event-aggregator-i3la.onrender.com/api/events/type/future')
       .then((res) => {
         if (!cancelled) setEvents(Array.isArray(res.data) ? res.data : []);
       })

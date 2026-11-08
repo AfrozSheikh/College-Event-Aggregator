@@ -64,7 +64,7 @@ const EventDetail = () => {
 
   const checkRegistrationStatus = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/participations/check/${id}/${user.id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/participations/check/${id}/${user.id}`);
       setIsRegistered(response.data.isRegistered);
     } catch (error) {
       console.error('Error checking registration status:', error);
@@ -73,7 +73,7 @@ const EventDetail = () => {
 
   const checkFeedbackStatus = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/feedback-forms/check/${id}/${user.id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/check/${id}/${user.id}`);
       setHasGivenFeedback(response.data.hasSubmitted);
     } catch (error) {
       console.error('Error checking feedback status:', error);
@@ -92,9 +92,9 @@ const EventDetail = () => {
   const fetchEventData = async () => {
     try {
       const [eventRes, participationsRes, feedbackRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/events/${id}`),
-        user?.role === 'admin' ? axios.get(`http://localhost:5000/api/participations/event/${id}`) : Promise.resolve({ data: [] }),
-        axios.get(`http://localhost:5000/api/feedback/event/${id}`)
+        axios.get(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`),
+        user?.role === 'admin' ? axios.get(`https://college-event-aggregator-i3la.onrender.com/api/participations/event/${id}`) : Promise.resolve({ data: [] }),
+        axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback/event/${id}`)
       ]);
 
       setEvent(eventRes.data);
@@ -103,12 +103,12 @@ const EventDetail = () => {
 
       // Check if feedback form exists and fetch dynamic responses
       try {
-        const formRes = await axios.get(`http://localhost:5000/api/feedback-forms/event/${id}`);
+        const formRes = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/event/${id}`);
         const form = formRes.data;
         setFeedbackForm(form);
 
         // Fetch dynamic feedback responses for everyone (to display in feedback tab)
-        const responsesRes = await axios.get(`http://localhost:5000/api/feedback-forms/${form.id}/responses`);
+        const responsesRes = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/${form.id}/responses`);
         // Store dynamic responses in event state
         setEvent(prev => ({ ...prev, dynamicFeedbackResponses: responsesRes.data }));
       } catch {
@@ -125,7 +125,7 @@ const EventDetail = () => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`http://localhost:5000/api/events/${id}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`);
       toast.success('Event deleted successfully');
       navigate(user?.role === 'admin' ? '/admin' : '/faculty');
     } catch {
@@ -136,10 +136,10 @@ const EventDetail = () => {
   const generateReport = async () => {
     setReportLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/reports/event/${id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/reports/event/${id}`);
       toast.success('Report generated successfully');
       // Open report in new tab
-      window.open(`http://localhost:5000${response.data.downloadUrl}`, '_blank');
+      window.open(`https://college-event-aggregator-i3la.onrender.com${response.data.downloadUrl}`, '_blank');
     } catch {
       toast.error('Failed to generate report');
     } finally {

@@ -57,7 +57,7 @@ const Gallery = () => {
 
   const fetchEvents = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/events/type/past');
+      const response = await axios.get('https://college-event-aggregator-i3la.onrender.com/api/events/type/past');
       setEvents(response.data);
       if (response.data.length > 0) {
         setSelectedEvent(response.data[0]);
@@ -72,7 +72,7 @@ const Gallery = () => {
   // Confirmation now happens in <ConfirmDialog> before this is called
   const handleDeleteEvent = async (eventId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/events/${eventId}`);
       toast.success('Event deleted successfully');
 
       // Remove deleted event from list

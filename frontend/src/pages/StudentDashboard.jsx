@@ -53,7 +53,7 @@ const StudentDashboard = () => {
       const statusMap = {};
       for (const event of futureEvents) {
         const response = await axios.get(
-          `http://localhost:5000/api/participations/check/${event.id}/${user.id}`
+          `https://college-event-aggregator-i3la.onrender.com/api/participations/check/${event.id}/${user.id}`
         );
         statusMap[event.id] = response.data.isRegistered;
       }
@@ -68,7 +68,7 @@ const StudentDashboard = () => {
       const statusMap = {};
       for (const event of pastEvents) {
         const response = await axios.get(
-          `http://localhost:5000/api/feedback-forms/check/${event.id}/${user.id}`
+          `https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/check/${event.id}/${user.id}`
         );
         statusMap[event.id] = response.data.hasSubmitted;
       }
@@ -81,8 +81,8 @@ const StudentDashboard = () => {
   const fetchEvents = async () => {
     try {
       const [futureRes, pastRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/events/type/future'),
-        axios.get('http://localhost:5000/api/events/type/past')
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/events/type/future'),
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/events/type/past')
       ]);
 
       setFutureEvents(futureRes.data.slice(0, 3));

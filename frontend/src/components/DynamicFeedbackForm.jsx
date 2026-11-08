@@ -67,7 +67,7 @@ const DynamicFeedbackForm = () => {
 
   const fetchFeedbackForm = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/feedback-forms/event/${eventId}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/event/${eventId}`);
       setFeedbackForm(response.data);
 
       // Initialize answers object
@@ -93,7 +93,7 @@ const DynamicFeedbackForm = () => {
 
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/feedback-forms/check/${eventId}/${user.id}`
+        `https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/check/${eventId}/${user.id}`
       );
       setHasSubmitted(response.data.hasSubmitted);
     } catch (error) {
@@ -128,7 +128,7 @@ const DynamicFeedbackForm = () => {
         answerText: answers[q.id]?.toString() || ''
       }));
 
-      await axios.post('http://localhost:5000/api/feedback-forms/responses', {
+      await axios.post('https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/responses', {
         formId: feedbackForm.id,
         eventId,
         studentId: user.id,

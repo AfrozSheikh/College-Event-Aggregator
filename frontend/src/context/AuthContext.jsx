@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyUser = async (userId) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/auth/user?userId=${userId}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/auth/user?userId=${userId}`);
       return response.data && response.data.id === userId;
     } catch (error) {
       return false;
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }) => {
   const loadNotifications = async (userId, role) => {
     if (role === 'student') {
       try {
-        const response = await axios.get(`http://localhost:5000/api/notifications/student/${userId}`);
+        const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/notifications/student/${userId}`);
         setNotifications(response.data);
       } catch (error) {
         console.error('Failed to load notifications:', error);
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await axios.post('https://college-event-aggregator-i3la.onrender.com/api/auth/login', {
         email,
         password
       });
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (userData) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/signup', userData);
+      const response = await axios.post('https://college-event-aggregator-i3la.onrender.com/api/auth/signup', userData);
       toast.success(response.data.message);
       return { success: true };
     } catch (error) {
@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }) => {
 
 //   const login = async (email, password) => {
 //     try {
-//       const response = await axios.post('http://localhost:5000/api/auth/login', {
+//       const response = await axios.post('https://college-event-aggregator-i3la.onrender.com/api/auth/login', {
 //         email,
 //         password
 //       });
@@ -186,7 +186,7 @@ export const AuthProvider = ({ children }) => {
 
 //   const signup = async (userData) => {
 //     try {
-//       const response = await axios.post('http://localhost:5000/api/auth/signup', userData);
+//       const response = await axios.post('https://college-event-aggregator-i3la.onrender.com/api/auth/signup', userData);
 //       toast.success(response.data.message);
 //       return { success: true };
 //     } catch (error) {

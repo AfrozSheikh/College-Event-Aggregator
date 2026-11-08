@@ -176,7 +176,7 @@ const EventForm = () => {
 
   const fetchEvent = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/events/${id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`);
       const event = response.data;
       setFormData({
         title: event.title,
@@ -194,7 +194,7 @@ const EventForm = () => {
       setUploadedImages(event.images || []);
       // Show existing payment QR if present
       if (event.payment_qr_url) {
-        setPaymentQrPreview(`http://localhost:5000${event.payment_qr_url}`);
+        setPaymentQrPreview(`https://college-event-aggregator-i3la.onrender.com${event.payment_qr_url}`);
       }
     } catch {
       toast.error('Failed to fetch event');
@@ -279,12 +279,12 @@ const EventForm = () => {
 
     try {
       if (isEdit) {
-        await axios.put(`http://localhost:5000/api/events/${id}`, formDataToSend, {
+        await axios.put(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`, formDataToSend, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         toast.success('Event updated successfully');
       } else {
-        await axios.post('http://localhost:5000/api/events', formDataToSend, {
+        await axios.post('https://college-event-aggregator-i3la.onrender.com/api/events', formDataToSend, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         toast.success('Event created successfully');
@@ -310,7 +310,7 @@ const EventForm = () => {
   const imagePreviews = useMemo(
     () =>
       uploadedImages.map(image =>
-        image instanceof File ? URL.createObjectURL(image) : `http://localhost:5000${image.image_url}`
+        image instanceof File ? URL.createObjectURL(image) : `https://college-event-aggregator-i3la.onrender.com${image.image_url}`
       ),
     [uploadedImages]
   );

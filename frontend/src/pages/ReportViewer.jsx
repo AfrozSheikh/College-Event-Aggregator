@@ -22,7 +22,7 @@ const ReportViewer = () => {
 
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/events');
+      const response = await axios.get('https://college-event-aggregator-i3la.onrender.com/api/events');
       setEvents(response.data);
       // Load generated reports from local storage or API
       const savedReports = JSON.parse(localStorage.getItem('generatedReports') || '[]');
@@ -37,7 +37,7 @@ const ReportViewer = () => {
   const generateReport = async (eventId) => {
     setGeneratingId(eventId);
     try {
-      const response = await axios.get(`http://localhost:5000/api/reports/event/${eventId}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/reports/event/${eventId}`);
       toast.success('Report generated successfully');
 
       // Save report info
@@ -53,7 +53,7 @@ const ReportViewer = () => {
       localStorage.setItem('generatedReports', JSON.stringify(updatedReports));
 
       // Open report in new tab
-      window.open(`http://localhost:5000${response.data.downloadUrl}`, '_blank');
+      window.open(`https://college-event-aggregator-i3la.onrender.com${response.data.downloadUrl}`, '_blank');
     } catch {
       toast.error('Failed to generate report');
     } finally {
@@ -173,7 +173,7 @@ const ReportViewer = () => {
               <ul className="mt-2 max-h-[640px] divide-y overflow-y-auto">
                 {reports.map(report => {
                   const event = events.find(e => e.id === report.eventId);
-                  const href = `http://localhost:5000${report.downloadUrl}`;
+                  const href = `https://college-event-aggregator-i3la.onrender.com${report.downloadUrl}`;
                   const fileName = report.downloadUrl?.split('/').pop();
                   return (
                     <li key={report.id} className="py-3">

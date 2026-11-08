@@ -115,7 +115,7 @@ const ParticipationForm = () => {
 
   const fetchEvent = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/events/${id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`);
       setEvent(response.data);
     } catch {
       toast.error('Failed to fetch event details');
@@ -197,7 +197,7 @@ const ParticipationForm = () => {
     }
 
     try {
-      await axios.post('http://localhost:5000/api/participations/register', formDataToSend, {
+      await axios.post('https://college-event-aggregator-i3la.onrender.com/api/participations/register', formDataToSend, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       toast.success('Successfully registered for the event!');

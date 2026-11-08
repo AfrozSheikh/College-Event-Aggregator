@@ -65,7 +65,7 @@ const FeedbackForm = () => {
 
   const fetchEvent = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/events/${id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/events/${id}`);
       setEvent(response.data);
 
       // Check if event is past
@@ -86,7 +86,7 @@ const FeedbackForm = () => {
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:5000/api/feedback', {
+      await axios.post('https://college-event-aggregator-i3la.onrender.com/api/feedback', {
         eventId: id,
         studentId: user.id,
         rating,

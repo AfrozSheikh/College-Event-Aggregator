@@ -30,8 +30,8 @@ const EventParticipants = () => {
   const fetchData = async () => {
     try {
       const [eventRes, participantsRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/events/${eventId}`),
-        axios.get(`http://localhost:5000/api/participations/event/${eventId}`)
+        axios.get(`https://college-event-aggregator-i3la.onrender.com/api/events/${eventId}`),
+        axios.get(`https://college-event-aggregator-i3la.onrender.com/api/participations/event/${eventId}`)
       ]);
 
       setEvent(eventRes.data);

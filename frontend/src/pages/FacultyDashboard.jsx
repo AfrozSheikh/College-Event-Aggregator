@@ -39,7 +39,7 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
   const fetchData = async () => {
     try {
       const [eventsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/events')
+        axios.get('https://college-event-aggregator-i3la.onrender.com/api/events')
       ]);
 
       const allEventsData = eventsRes.data;
@@ -64,7 +64,7 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
 
   const handleDeleteEvent = async (eventId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/events/${eventId}`);
+      await axios.delete(`https://college-event-aggregator-i3la.onrender.com/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchData();
     } catch {

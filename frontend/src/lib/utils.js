@@ -5,7 +5,7 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export const API_URL = 'http://localhost:5000';
+export const API_URL = 'https://college-event-aggregator-i3la.onrender.com';
 
 // Builds an absolute URL for files served by the backend (e.g. "/api/files/gallery/3")
 export const fileUrl = (path) => (path ? `${API_URL}${path}` : null);

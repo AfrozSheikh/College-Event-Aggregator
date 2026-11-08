@@ -33,7 +33,7 @@ const MyRegistrations = () => {
   const fetchRegistrations = async () => {
     try {
       // Fetch student's participations
-      const response = await axios.get(`http://localhost:5000/api/participations/student/${user.id}`);
+      const response = await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/participations/student/${user.id}`);
       const regs = response.data;
       setRegistrations(regs);
 
@@ -41,11 +41,11 @@ const MyRegistrations = () => {
       const statusPromises = regs.map(async (reg) => {
         try {
           // Check if feedback form exists
-          await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
+          await axios.get(`https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/event/${reg.event_id}`);
 
           // Check if student has submitted
           const statusResponse = await axios.get(
-            `http://localhost:5000/api/feedback-forms/check/${reg.event_id}/${user.id}`
+            `https://college-event-aggregator-i3la.onrender.com/api/feedback-forms/check/${reg.event_id}/${user.id}`
           );
 
           return {
