@@ -1,146 +1,103 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { BellIcon, BellAlertIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
+import { Bell, BellRing, ArrowRight } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+const timeAgo = (date) => {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const units = [
+    ['y', 31536000],
+    ['mo', 2592000],
+    ['d', 86400],
+    ['h', 3600],
+    ['m', 60],
+  ];
+  for (const [label, secs] of units) {
+    const v = Math.floor(seconds / secs);
+    if (v >= 1) return `${v}${label} ago`;
+  }
+  return 'just now';
+};
 
 const NotificationBell = () => {
-  const { user, notifications, markNotificationAsRead, clearNotifications } = useAuth();
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    if (user?.role === 'student') {
-      const unread = notifications?.filter(n => !n.is_read).length || 0;
-      setUnreadCount(unread);
-    }
-  }, [notifications, user]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleMarkAsRead = async (notificationId) => {
-    try {
-      await axios.put(`http://localhost:5000/api/notifications/${notificationId}/read`);
-      markNotificationAsRead(notificationId);
-      toast.success('Marked as read');
-    } catch (error) {
-      toast.error('Failed to mark notification as read');
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await axios.put(`http://localhost:5000/api/notifications/user/${user.id}/read-all`);
-      clearNotifications();
-      setUnreadCount(0);
-      toast.success('All notifications marked as read');
-    } catch (error) {
-      toast.error('Failed to mark all as read');
-    }
-  };
+  const { user, notifications } = useAuth();
+  const [open, setOpen] = useState(false);
+  const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
 
   if (user?.role !== 'student') return null;
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none transition-colors duration-200"
-        aria-label="Notifications"
-      >
-        {unreadCount > 0 ? (
-          <BellAlertIcon className="h-6 w-6 text-red-500" />
-        ) : (
-          <BellIcon className="h-6 w-6" />
-        )}
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
-
-      {showDropdown && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-50 border border-gray-200 transform origin-top-right">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-gray-800" >Recent Notifications</h3>
-              {/* {notifications?.length > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Mark all as read
-                </button>
-              )} */}
-            </div>
-          </div>
-
-          <div className="max-h-96 overflow-y-auto">
-            {!notifications || notifications.length === 0 ? (
-              <div className="p-6 text-center">
-                <BellIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No notifications yet</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  You'll see notifications here for new events
-                </p>
-              </div>
-            ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                    !notification.is_read ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 mr-2">
-                      <h4 className={`font-medium ${!notification.is_read ? 'text-blue-800' : 'text-gray-800'}`}>
-                        {notification.title}
-                      </h4>
-                      <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                      <p className="text-xs text-gray-400 mt-2">
-                        {new Date(notification.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    {/* {!notification.is_read && (
-                      <button
-                        onClick={() => handleMarkAsRead(notification.id)}
-                        className="ml-2 text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
-                      >
-                        Mark read
-                      </button>
-                    )} */}
-                  </div>
-                </div>
-              ))
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative rounded-full" aria-label="Notifications">
+          {unreadCount > 0 ? <BellRing className="size-[18px]" strokeWidth={1.75} /> : <Bell className="size-[18px]" strokeWidth={1.75} />}
+          <AnimatePresence>
+            {unreadCount > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="bg-primary text-primary-foreground ring-background absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[10px] ring-2"
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </motion.span>
             )}
-          </div>
+          </AnimatePresence>
+        </Button>
+      </PopoverTrigger>
 
-          <div className="p-3 border-t border-gray-200 bg-gray-50">
-            <Link
-              to="/student/my-registrations"
-              className="block text-center text-sm text-blue-600 hover:text-blue-800 font-medium"
-              onClick={() => setShowDropdown(false)}
-            >
-              View All Activities →
-            </Link>
+      <PopoverContent align="end" className="w-[22rem] overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <h3 className="text-base">Notifications</h3>
+            <p className="text-muted-foreground text-xs">{unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}</p>
           </div>
         </div>
-      )}
-    </div>
+
+        <div className="scrollbar-thin max-h-96 overflow-y-auto">
+          {!notifications || notifications.length === 0 ? (
+            <div className="px-6 py-10 text-center">
+              <p className="font-serif text-lg">Nothing new</p>
+              <p className="text-muted-foreground mt-1 text-xs">You'll see new events announced here</p>
+            </div>
+          ) : (
+            notifications.map((notification) => (
+              <div
+                key={notification.id}
+                className={cn(
+                  'hover:bg-muted/60 flex gap-3 border-b px-4 py-3 transition-colors last:border-0',
+                  !notification.is_read && 'bg-accent/50'
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={cn('text-sm leading-snug', !notification.is_read ? 'font-semibold' : 'font-medium')}>
+                      {notification.title}
+                    </p>
+                    {!notification.is_read && <span className="bg-primary mt-1.5 size-2 shrink-0 rounded-full" />}
+                  </div>
+                  <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">{notification.message}</p>
+                  <p className="text-muted-foreground/70 mt-1 text-[11px]">{timeAgo(notification.created_at)}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="bg-muted/40 border-t p-2">
+          <Button asChild variant="ghost" size="sm" className="w-full">
+            <Link to="/student/my-registrations" onClick={() => setOpen(false)}>
+              See my registrations <ArrowRight />
+            </Link>
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

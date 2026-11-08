@@ -1,1 +1,218 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource-variable/fraunces/full-italic.css";
+@import "@fontsource-variable/public-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+   Campus noticeboard palette: warm paper, ink, one collegiate accent (brick red)
+   and a marigold highlighter used sparingly.
+   ============================================================================ */
+:root {
+  --radius: 0.375rem;
+
+  --background: oklch(0.975 0.008 85);   /* paper */
+  --foreground: oklch(0.22 0.012 60);    /* ink */
+  --card: oklch(0.993 0.004 85);
+  --card-foreground: oklch(0.22 0.012 60);
+  --popover: oklch(0.995 0.003 85);
+  --popover-foreground: oklch(0.22 0.012 60);
+  --primary: oklch(0.5 0.15 32);         /* brick */
+  --primary-foreground: oklch(0.985 0.005 85);
+  --secondary: oklch(0.94 0.012 80);
+  --secondary-foreground: oklch(0.3 0.015 60);
+  --muted: oklch(0.945 0.01 80);
+  --muted-foreground: oklch(0.5 0.015 65);
+  --accent: oklch(0.935 0.014 78);
+  --accent-foreground: oklch(0.25 0.015 60);
+  --destructive: oklch(0.52 0.18 28);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.5 0.1 150);         /* forest */
+  --success-foreground: oklch(0.985 0.005 85);
+  --warning: oklch(0.8 0.13 80);         /* marigold */
+  --warning-foreground: oklch(0.28 0.05 70);
+  --highlight: oklch(0.88 0.13 90);      /* highlighter */
+  --border: oklch(0.885 0.014 78);
+  --input: oklch(0.85 0.016 78);
+  --ring: oklch(0.5 0.15 32);
+
+  --sidebar: oklch(0.96 0.01 82);
+  --sidebar-foreground: oklch(0.3 0.015 60);
+  --sidebar-border: oklch(0.88 0.014 78);
+  --sidebar-accent: oklch(0.92 0.014 78);
+  --sidebar-accent-foreground: oklch(0.2 0.012 60);
+
+  --chart-1: oklch(0.5 0.15 32);
+  --chart-2: oklch(0.5 0.1 150);
+  --chart-3: oklch(0.72 0.13 80);
+  --chart-4: oklch(0.45 0.08 250);
+  --chart-5: oklch(0.45 0.09 330);
+}
+
+.dark {
+  --background: oklch(0.19 0.006 60);    /* warm charcoal */
+  --foreground: oklch(0.92 0.012 80);
+  --card: oklch(0.225 0.007 60);
+  --card-foreground: oklch(0.92 0.012 80);
+  --popover: oklch(0.24 0.007 60);
+  --popover-foreground: oklch(0.92 0.012 80);
+  --primary: oklch(0.68 0.14 38);
+  --primary-foreground: oklch(0.17 0.01 50);
+  --secondary: oklch(0.28 0.008 60);
+  --secondary-foreground: oklch(0.88 0.012 80);
+  --muted: oklch(0.26 0.007 60);
+  --muted-foreground: oklch(0.68 0.012 75);
+  --accent: oklch(0.29 0.008 60);
+  --accent-foreground: oklch(0.92 0.012 80);
+  --destructive: oklch(0.65 0.17 28);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.1 150);
+  --success-foreground: oklch(0.17 0.02 150);
+  --warning: oklch(0.8 0.12 80);
+  --warning-foreground: oklch(0.2 0.03 70);
+  --highlight: oklch(0.55 0.1 85);
+  --border: oklch(0.32 0.008 60);
+  --input: oklch(0.36 0.009 60);
+  --ring: oklch(0.68 0.14 38);
+
+  --sidebar: oklch(0.21 0.006 60);
+  --sidebar-foreground: oklch(0.85 0.012 80);
+  --sidebar-border: oklch(0.3 0.008 60);
+  --sidebar-accent: oklch(0.27 0.008 60);
+  --sidebar-accent-foreground: oklch(0.95 0.012 80);
+}
+
+@theme inline {
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 6px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-highlight: var(--highlight);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* User-entered text (titles, descriptions) may contain very long words */
+    overflow-wrap: break-word;
+    font-size: 15px;
+  }
+  /* Faint paper grain */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .dark body::before {
+    opacity: 0.05;
+  }
+  h1, h2, h3 {
+    @apply font-serif;
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 50, "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+  h1 {
+    font-weight: 500;
+  }
+  h2, h3 {
+    font-weight: 550;
+  }
+  h4 {
+    @apply font-sans font-semibold;
+  }
+  ::selection {
+    background: var(--highlight);
+    color: var(--foreground);
+  }
+}
+
+@layer utilities {
+  /* Small metadata text: dates, counts, codes */
+  .meta {
+    @apply font-mono text-[11.5px] tracking-tight text-muted-foreground;
+  }
+  /* Highlighter-pen underline for one or two words per screen */
+  .marker {
+    background-image: linear-gradient(transparent 58%, var(--highlight) 58%, var(--highlight) 88%, transparent 88%);
+    background-repeat: no-repeat;
+    padding: 0 0.12em;
+    margin: 0 -0.12em;
+  }
+  /* Thin rule with a perforated "ticket stub" look */
+  .perforated {
+    background-image: linear-gradient(to right, var(--border) 50%, transparent 50%);
+    background-size: 8px 1px;
+    background-repeat: repeat-x;
+    height: 1px;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Kept as no-ops so older markup doesn't break; don't use in new code */
+  .bg-dot, .bg-grid, .mask-radial, .mask-fade-b {}
+  .text-gradient {
+    @apply text-primary;
+  }
+  .glass {
+    @apply bg-background/95;
+  }
+}

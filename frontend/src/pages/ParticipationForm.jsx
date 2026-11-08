@@ -2,25 +2,102 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
+import { ArrowLeft, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox, Skeleton } from '@/components/ui/misc';
+import PageHeader from '@/components/common/PageHeader';
+import FileDropzone from '@/components/common/FileDropzone';
+import { FadeIn } from '@/components/common/motion';
+import { cn, fileUrl, formatTime, getCategoryStyle } from '@/lib/utils';
+
+/* ---------- local helpers ---------- */
+
+const formatSize = (bytes) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+
+// Registrations are only for this institute, so the college name is fixed
+const INSTITUTE_NAME = 'Institute of Engineering and Management';
+
+const Field = ({ id, label, hint, className, ...inputProps }) => (
+  <div className={cn('space-y-1.5', className)}>
+    <Label htmlFor={id}>{label}</Label>
+    <Input id={id} {...inputProps} />
+    {hint && <p className="meta">{hint}</p>}
+  </div>
+);
+
+/* One part of the slip: heading + one-line note on the left (wide screens), fields on the right */
+const FormSection = ({ number, title, note, children }) => (
+  <section className="grid gap-x-10 gap-y-5 border-t py-8 md:grid-cols-[12rem_1fr]">
+    <div>
+      <p className="meta mb-1">{number}</p>
+      <h2 className="text-xl leading-snug">{title}</h2>
+      {note && <p className="text-muted-foreground mt-1.5 text-sm">{note}</p>}
+    </div>
+    <div className="min-w-0">{children}</div>
+  </section>
+);
+
+/* Quiet progress line: "1 Details — 2 Payment — 3 Confirm" */
+const StepLine = ({ steps }) => (
+  <ol className="meta flex flex-wrap items-center gap-x-2 gap-y-1">
+    {steps.map((step, i) => (
+      <li key={step.label} className="flex items-center gap-2">
+        <span className={cn('inline-flex items-center gap-1', step.done && 'text-foreground')}>
+          {step.done ? <Check className="size-3.5" strokeWidth={2} /> : <span>{i + 1}</span>}
+          {step.label}
+        </span>
+        {i < steps.length - 1 && <span aria-hidden="true">—</span>}
+      </li>
+    ))}
+  </ol>
+);
+
+const FormSkeleton = () => (
+  <div className="space-y-8">
+    <div className="space-y-3 border-b pb-6">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-9 w-96 max-w-full" />
+    </div>
+    <div className="grid gap-10 lg:grid-cols-[1fr_20rem]">
+      <div className="space-y-6">
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-64 rounded-md" />
+        <Skeleton className="h-32 rounded-md" />
+      </div>
+      <Skeleton className="h-96 rounded-lg" />
+    </div>
+  </div>
+);
+
+/* ---------- page ---------- */
 
 const ParticipationForm = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [event, setEvent] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    college: '',
+    college: INSTITUTE_NAME,
     courseYear: '',
     teamMembers: '',
     document: null
   });
-  
+
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [paymentScreenshotPreview, setPaymentScreenshotPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+
+  const isPaidEvent = event && Number(event.registration_fees) > 0;
 
   useEffect(() => {
     fetchEvent();
@@ -30,7 +107,7 @@ const ParticipationForm = () => {
         name: user.name,
         email: user.email,
         phone: user.phone || '',
-        college: user.college_name || '',
+        college: INSTITUTE_NAME,
         courseYear: `${user.course} - ${user.year}`,
       }));
     }
@@ -40,7 +117,7 @@ const ParticipationForm = () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/events/${id}`);
       setEvent(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch event details');
       navigate('/events');
     }
@@ -53,6 +130,8 @@ const ParticipationForm = () => {
     });
   };
 
+  // Kept for the (currently disabled) optional document upload section
+  // eslint-disable-next-line no-unused-vars
   const handleFileChange = (e) => {
     setFormData({
       ...formData,
@@ -60,8 +139,44 @@ const ParticipationForm = () => {
     });
   };
 
+  // FileDropzone hands us an array of File objects (it resets its own input)
+  const handlePaymentScreenshotChange = (files) => {
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Please upload a JPG, PNG or WEBP image');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Screenshot must be smaller than 10MB');
+      return;
+    }
+
+    if (paymentScreenshotPreview) URL.revokeObjectURL(paymentScreenshotPreview);
+    setPaymentScreenshot(file);
+    setPaymentScreenshotPreview(URL.createObjectURL(file));
+  };
+
+  const removePaymentScreenshot = () => {
+    if (paymentScreenshotPreview) URL.revokeObjectURL(paymentScreenshotPreview);
+    setPaymentScreenshot(null);
+    setPaymentScreenshotPreview(null);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!agreed) {
+      toast.error('Please accept the event rules and eligibility criteria');
+      return;
+    }
+
+    if (isPaidEvent && !paymentScreenshot) {
+      toast.error('Please upload your payment screenshot');
+      return;
+    }
+
     setLoading(true);
 
     const formDataToSend = new FormData();
@@ -72,9 +187,13 @@ const ParticipationForm = () => {
         formDataToSend.append(key, formData[key]);
       }
     });
-    
+
     if (formData.document) {
       formDataToSend.append('document', formData.document);
+    }
+
+    if (paymentScreenshot) {
+      formDataToSend.append('paymentScreenshot', paymentScreenshot);
     }
 
     try {
@@ -90,239 +209,281 @@ const ParticipationForm = () => {
     }
   };
 
-  if (!event) return <div>Loading...</div>;
+  if (!event) return <FormSkeleton />;
+
+  const category = getCategoryStyle(event.category);
+  const coverUrl = fileUrl(event.images?.[0]?.image_url);
+  const qrUrl = fileUrl(event.payment_qr_url);
+  const eventDate = new Date(event.event_date);
+  const detailsDone = ['name', 'email', 'phone', 'college', 'courseYear'].every((k) => String(formData[k] || '').trim());
+  const steps = [
+    { label: 'Details', done: detailsDone },
+    ...(isPaidEvent ? [{ label: 'Payment', done: !!paymentScreenshot }] : []),
+    { label: 'Confirm', done: agreed },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-3xl mx-auto px-4">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              Register for: {event.title}
-            </h1>
-            <p className="text-gray-600">
-              Fill out the form below to register for this event
-            </p>
-          </div>
+    <div>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="text-muted-foreground hover:text-foreground mb-5 inline-flex items-center gap-1.5 text-sm transition-colors"
+      >
+        <ArrowLeft className="size-4" strokeWidth={1.75} /> Back
+      </button>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Event Details Card */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-              <h3 className="font-semibold text-blue-800 mb-2">Event Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">Date: <span className="font-medium">{new Date(event.event_date).toLocaleDateString()}</span></p>
-                  <p className="text-gray-600">Time: <span className="font-medium">{event.event_time}</span></p>
+      <PageHeader
+        eyebrow="Registration"
+        title={
+          <>
+            Register for <em>{event.title}</em>
+          </>
+        }
+        description="Check your details, add a teammate or two if you have them, and send it in."
+      />
+
+      <div className="grid items-start gap-10 lg:grid-cols-[1fr_20rem]">
+        {/* Ticket stub summary – first on mobile, sticky on the right on desktop */}
+        <aside className="lg:sticky lg:top-24 lg:order-last">
+          <FadeIn delay={0.05}>
+            <div className="bg-card rounded-lg border">
+              <div className="h-36 overflow-hidden rounded-t-lg">
+                {coverUrl ? (
+                  <img src={coverUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className={cn('flex h-full w-full items-end p-4 text-white', category.poster)}>
+                    <span className="font-serif text-4xl leading-none italic opacity-90">{category.label}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-4 p-4">
+                <div className="flex w-11 shrink-0 flex-col items-center border-r pr-4 text-center">
+                  <span className="meta uppercase">{eventDate.toLocaleDateString('en-IN', { month: 'short' })}</span>
+                  <span className="tabular font-serif text-[1.7rem] leading-none font-medium">{eventDate.getDate()}</span>
+                  <span className="meta mt-0.5">{eventDate.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
                 </div>
-                <div>
-                  <p className="text-gray-600">Location: <span className="font-medium">{event.location}</span></p>
-                  <p className="text-gray-600">Category: <span className="font-medium">{event.category}</span></p>
+                <div className="min-w-0 flex-1">
+                  <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', category.text)}>
+                    <span className={cn('size-1.5 rounded-full', category.dot)} />
+                    {category.label}
+                  </span>
+                  <h3 className="mt-0.5 line-clamp-2 text-lg leading-snug">{event.title}</h3>
+                  <p className="meta mt-2">{formatTime(event.event_time) || event.event_time}</p>
+                  <p className="meta">{event.location}</p>
                 </div>
+              </div>
+
+              <div className="relative">
+                <span className="bg-background absolute top-1/2 -left-[7px] size-3.5 -translate-y-1/2 rounded-full border" />
+                <span className="bg-background absolute top-1/2 -right-[7px] size-3.5 -translate-y-1/2 rounded-full border" />
+                <div className="perforated mx-3" />
+              </div>
+
+              <div className="flex items-baseline justify-between px-4 py-3.5">
+                <span className="meta">Registration fee</span>
+                {isPaidEvent ? (
+                  <span className="tabular font-serif text-2xl">₹{event.registration_fees}</span>
+                ) : (
+                  <span className="text-success font-serif text-2xl italic">Free</span>
+                )}
               </div>
             </div>
-            
-            {/* Payment QR Code Section - Show if fees > 0 */}
-            {event.registration_fees > 0 && event.payment_qr_code && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-                <h3 className="font-semibold text-yellow-800 mb-3">💳 Payment Required</h3>
-                <div className="flex flex-col md:flex-row gap-6 items-start">
-                  <div className="flex-1">
-                    <p className="text-gray-700 mb-2">
-                      <span className="font-semibold">Registration Fees:</span> ₹{event.registration_fees}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Please scan the QR code below to make the payment. After payment, proceed with registration.
-                    </p>
-                    <p className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded">
-                      ⚠️ Keep your payment screenshot/reference for verification
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <img
-                      src={`http://localhost:5000/${event.payment_qr_code}`}
-                      alt="Payment QR Code"
-                      className="w-48 h-48 object-contain border-2 border-yellow-300 rounded-lg shadow-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => window.open(`http://localhost:5000/${event.payment_qr_code}`, '_blank')}
-                      className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
-                    >
-                      View Full Size
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {/* Personal Information */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-800">Personal Information</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    minLength="3"
-                    maxLength="100"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  />
-                </div>
+            <p className="text-muted-foreground mt-3 hidden px-1 text-xs lg:block">
+              Your details go only to the people organising this event.
+            </p>
+          </FadeIn>
+        </aside>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  />
-                </div>
-              </div>
+        <form onSubmit={handleSubmit}>
+          <FadeIn>
+            <div className="pb-6">
+              <StepLine steps={steps} />
+            </div>
+          </FadeIn>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    required
-                    pattern="[0-9]{10}"
-                    title="Please enter a valid 10-digit phone number"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    placeholder="+91 9876543210"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    College Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="college"
-                    required
-                    value={formData.college}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Course & Year *
-                </label>
-                <input
+          <FadeIn delay={0.05}>
+            <FormSection
+              number="01"
+              title="Your details"
+              note="Filled in from your profile. Change anything that's out of date."
+            >
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <Field
+                  id="name"
+                  label="Full name *"
+                  type="text"
+                  name="name"
+                  required
+                  minLength="3"
+                  maxLength="100"
+                  value={formData.name}
+                  onChange={handleChange}
+                />
+                <Field
+                  id="email"
+                  label="Email *"
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                />
+                <Field
+                  id="phone"
+                  label="Phone *"
+                  type="tel"
+                  name="phone"
+                  required
+                  pattern="[0-9]{10}"
+                  title="Please enter a valid 10-digit phone number"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="9876543210"
+                  hint="10 digits, no country code"
+                />
+                <Field
+                  id="college"
+                  label="College *"
+                  type="text"
+                  name="college"
+                  required
+                  readOnly
+                  value={INSTITUTE_NAME}
+                  className="[&_input]:bg-muted [&_input]:text-muted-foreground [&_input]:cursor-not-allowed"
+                  hint="Set for all registrations"
+                />
+                <Field
+                  id="courseYear"
+                  label="Course and year *"
                   type="text"
                   name="courseYear"
                   required
                   value={formData.courseYear}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="e.g., B.Tech CSE - 3rd Year"
+                  placeholder="B.Tech CSE - 3rd Year"
+                  className="md:col-span-2"
                 />
               </div>
-            </div>
+            </FormSection>
 
-            {/* Team Information */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-800">Team Information (Optional)</h2>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Team Members
-                </label>
-                <textarea
+            <FormSection
+              number="02"
+              title="Team"
+              note="Optional. Leave it empty if you're taking part on your own."
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="teamMembers">Team members</Label>
+                <Textarea
+                  id="teamMembers"
                   name="teamMembers"
                   rows={3}
                   value={formData.teamMembers}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Enter names of team members (comma-separated)..."
+                  placeholder="Riya Sharma, Kabir Mehta"
                 />
-                <p className="text-sm text-gray-500 mt-1">Leave empty if participating individually</p>
+                <p className="meta">Separate names with commas</p>
               </div>
-            </div>
+            </FormSection>
 
-            {/* Document Upload */}
-            {/* <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-800">Documents (Optional)</h2>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Required Documents
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                  <input
-                    type="file"
-                    id="document-upload"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <label htmlFor="document-upload" className="cursor-pointer flex flex-col items-center">
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
+            {/* Payment – only for events with a fee */}
+            {isPaidEvent && (
+              <FormSection
+                number="03"
+                title="Payment"
+                note={
+                  event.payment_qr_url
+                    ? 'Scan the QR code to pay, then upload a screenshot of the successful payment.'
+                    : 'Pay as instructed by the organiser, then upload a screenshot of the successful payment.'
+                }
+              >
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <p className="meta">Amount to pay</p>
+                        <p className="tabular font-serif text-5xl leading-tight">₹{event.registration_fees}</p>
+                      </div>
+                      <p className="border-l-2 border-foreground/30 pl-3 text-sm">
+                        Make sure the transaction ID, amount and date are clearly visible in your screenshot.
+                      </p>
                     </div>
-                    <p className="text-gray-700 font-medium">
-                      {formData.document ? formData.document.name : 'Click to upload document'}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">PDF, DOC, or Images (max 10MB)</p>
-                  </label>
+
+                    {qrUrl && (
+                      <figure className="bg-card w-fit shrink-0 rounded-md border p-3">
+                        <img src={qrUrl} alt="Payment QR code" className="size-44 bg-white object-contain p-1" />
+                        <figcaption className="mt-2 flex items-center justify-between gap-3">
+                          <span className="meta">Scan to pay</span>
+                          <a
+                            href={qrUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs underline underline-offset-4 hover:text-primary"
+                          >
+                            Open full size
+                          </a>
+                        </figcaption>
+                      </figure>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Payment screenshot *</Label>
+                    {!paymentScreenshotPreview ? (
+                      <FileDropzone
+                        accept="image/jpeg,image/png,image/webp"
+                        onFiles={handlePaymentScreenshotChange}
+                        hint="JPG, PNG or WEBP, up to 10MB"
+                      />
+                    ) : (
+                      <div className="bg-card flex items-start gap-4 rounded-md border p-3">
+                        <img
+                          src={paymentScreenshotPreview}
+                          alt="Payment screenshot preview"
+                          className="bg-muted size-24 shrink-0 rounded-sm border object-contain"
+                        />
+                        <div className="min-w-0 flex-1 pt-0.5">
+                          <p className="text-success inline-flex items-center gap-1 text-sm font-medium">
+                            <Check className="size-4" strokeWidth={2} /> Attached
+                          </p>
+                          <p className="mt-1 truncate text-sm">{paymentScreenshot.name}</p>
+                          <p className="meta">{formatSize(paymentScreenshot.size)}</p>
+                          <button
+                            type="button"
+                            onClick={removePaymentScreenshot}
+                            className="text-destructive mt-2 text-xs underline underline-offset-4"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div> */}
+              </FormSection>
+            )}
 
-            {/* Terms & Submit */}
-            <div className="pt-6 border-t border-gray-200">
-              <div className="flex items-start mb-6">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  required
-                  className="mt-1 mr-3"
-                />
-                <label htmlFor="terms" className="text-sm text-gray-700">
-                  I agree to the event rules and eligibility criteria. I confirm that all information provided is accurate.
-                </label>
-              </div>
+            {/* Confirm & submit */}
+            <FormSection number={isPaidEvent ? '04' : '03'} title="Confirm" note="One last tick and you're done.">
+              <label htmlFor="terms" className="flex cursor-pointer items-start gap-3">
+                <Checkbox id="terms" checked={agreed} onCheckedChange={(v) => setAgreed(v === true)} className="mt-0.5" />
+                <span className="text-sm">
+                  I agree to the event rules and eligibility criteria, and the information above is accurate.
+                </span>
+              </label>
 
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="px-6 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition"
-                >
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button type="submit" variant="accent" size="lg" loading={loading}>
+                  {loading ? 'Submitting…' : 'Register'}
+                </Button>
+                <Button type="button" variant="ghost" size="lg" onClick={() => navigate(-1)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Submitting...' : 'Register Now'}
-                </button>
+                </Button>
               </div>
-            </div>
-          </form>
-        </div>
+            </FormSection>
+          </FadeIn>
+        </form>
       </div>
     </div>
   );

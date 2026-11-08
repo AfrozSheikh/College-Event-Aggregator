@@ -2,19 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
-import {
-  CalendarIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  ChartBarIcon,
-  UserGroupIcon,
-} from '@heroicons/react/24/outline';
+import { toast } from 'sonner';
+import { ArrowRight, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PageHeader from '@/components/common/PageHeader';
+import StatCard, { StatRow } from '@/components/common/StatCard';
+import EventCard from '@/components/common/EventCard';
+import EmptyState from '@/components/common/EmptyState';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { PageSkeleton } from '@/components/common/Loaders';
+import { FadeIn } from '@/components/common/motion';
+import { formatDate, formatLongDate, timeOfDay } from '@/lib/utils';
+
+const isUpcomingEvent = (event) => new Date(event.event_date) >= new Date();
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 const FacultyDashboard = ({ view = 'dashboard' }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [myEvents, setMyEvents] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -22,6 +30,7 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
     totalParticipants: 0,
     upcomingEvents: 0
   });
+  const [eventToDelete, setEventToDelete] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -32,21 +41,21 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
       const [eventsRes] = await Promise.all([
         axios.get('http://localhost:5000/api/events')
       ]);
-      
+
       const allEventsData = eventsRes.data;
       setAllEvents(allEventsData);
-      
+
       // Filter events created by this faculty
       const facultyEvents = allEventsData.filter(event => event.created_by === user?.id);
       setMyEvents(facultyEvents);
-      
+
       // Calculate stats
       setStats({
         myEvents: facultyEvents.length,
         totalParticipants: 0, // Would need additional API
         upcomingEvents: facultyEvents.filter(e => new Date(e.event_date) >= new Date()).length
       });
-    } catch (error) {
+    } catch {
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
@@ -54,295 +63,241 @@ const FacultyDashboard = ({ view = 'dashboard' }) => {
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
-
     try {
       await axios.delete(`http://localhost:5000/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchData();
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete event');
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  const deleteDialog = (
+    <ConfirmDialog
+      open={!!eventToDelete}
+      onOpenChange={(open) => !open && setEventToDelete(null)}
+      title="Delete this event?"
+      description={
+        eventToDelete
+          ? `"${eventToDelete.title}" and its registrations will be permanently removed. This cannot be undone.`
+          : undefined
+      }
+      confirmLabel="Delete event"
+      onConfirm={() => {
+        const target = eventToDelete;
+        setEventToDelete(null);
+        if (target) handleDeleteEvent(target.id);
+      }}
+    />
+  );
+
+  const renderEventActions = (event) => (
+    <>
+      <Button asChild size="sm" variant="ghost" className="h-8 px-2.5">
+        <Link to={`/events/${event.id}`} aria-label={`View ${event.title}`}>View</Link>
+      </Button>
+      <Button asChild size="sm" variant="outline" className="h-8 px-2.5">
+        <Link to={`/edit-event/${event.id}`} aria-label={`Edit ${event.title}`}>Edit</Link>
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-label={`Delete ${event.title}`}
+        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 px-2.5"
+        onClick={() => setEventToDelete(event)}
+      >
+        Delete
+      </Button>
+    </>
+  );
+
+  const renderEventGrid = (events, emptyProps) =>
+    events.length === 0 ? (
+      <EmptyState {...emptyProps} />
+    ) : (
+      <FadeIn className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {events.map(event => (
+          <EventCard key={event.id} event={event} actions={renderEventActions(event)} />
+        ))}
+      </FadeIn>
+    );
+
+  const createButton = (
+    <Button asChild variant="accent">
+      <Link to="/create-event">
+        <Plus strokeWidth={1.75} /> New event
+      </Link>
+    </Button>
+  );
+
+  if (loading) return <PageSkeleton stats={view === 'events' ? 0 : 3} cards={view === 'events' ? 6 : 3} />;
+
+  const upcomingList = myEvents.filter(isUpcomingEvent);
+  const pastList = myEvents.filter(event => !isUpcomingEvent(event));
 
   if (view === 'events') {
     return (
       <div>
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">My Events</h1>
-          <Link
-            to="/create-event"
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Create New Event
-          </Link>
-        </div>
+        <PageHeader
+          eyebrow="Faculty"
+          title="My events"
+          description="Everything you've put up, in one place. Open one to see who's registered, or edit and remove it here."
+          actions={createButton}
+        />
 
         {myEvents.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow">
-            <CalendarIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No events created yet</h3>
-            <p className="text-gray-500 mb-6">Create your first event to get started</p>
-            <Link
-              to="/create-event"
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create Your First Event
-            </Link>
-          </div>
+          <EmptyState
+            title="You haven't created any events yet"
+            description="Once you post an event, it'll show up here for you to edit or remove."
+            action={createButton}
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myEvents.map(event => (
-              <div key={event.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition">
-                {event.images && event.images.length > 0 ? (
-                  <div className="h-48 overflow-hidden">
-                    <img
-                      src={`http://localhost:5000/${event.images[0].image_path}`}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-48 bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
-                    <CalendarIcon className="h-12 w-12 text-gray-400" />
-                  </div>
-                )}
-
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-bold text-gray-800">{event.title}</h3>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      new Date(event.event_date) >= new Date()
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {new Date(event.event_date) >= new Date() ? 'Upcoming' : 'Past'}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
-
-                  <div className="space-y-2 mb-6 text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <CalendarIcon className="h-4 w-4 mr-2" />
-                      {new Date(event.event_date).toLocaleDateString()}
-                    </div>
-                    <div className="flex items-center">
-                      <UserGroupIcon className="h-4 w-4 mr-2" />
-                      {event.location}
-                    </div>
-                    <div className="capitalize">
-                      Category: {event.category}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <Link
-                      to={`/events/${event.id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                      View Details
-                    </Link>
-                    <div className="flex space-x-2">
-                      <Link
-                        to={`/edit-event/${event.id}`}
-                        className="p-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition"
-                        title="Edit"
-                      >
-                        <PencilIcon className="h-5 w-5" />
-                      </Link>
-                      <button
-                        onClick={() => handleDeleteEvent(event.id)}
-                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
-                        title="Delete"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <Tabs defaultValue="all">
+            <TabsList className="w-full sm:w-fit">
+              <TabsTrigger value="all">
+                All <span className="meta tabular">{myEvents.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="upcoming">
+                Upcoming <span className="meta tabular">{upcomingList.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="past">
+                Past <span className="meta tabular">{pastList.length}</span>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="mt-4">
+              {renderEventGrid(myEvents, { title: 'No events yet' })}
+            </TabsContent>
+            <TabsContent value="upcoming" className="mt-4">
+              {renderEventGrid(upcomingList, {
+                title: 'Nothing coming up',
+                description: 'All your events are in the past. Post a new one when you have something planned.',
+                action: createButton,
+              })}
+            </TabsContent>
+            <TabsContent value="past" className="mt-4">
+              {renderEventGrid(pastList, {
+                title: 'No past events yet',
+                description: 'Events move here once their date has gone by.',
+              })}
+            </TabsContent>
+          </Tabs>
         )}
+
+        {deleteDialog}
       </div>
     );
   }
 
+  const firstName = (user?.name || '').trim().split(' ')[0];
+  const completed = Math.max(stats.myEvents - stats.upcomingEvents, 0);
+  const nextEvent = [...upcomingList].sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0];
+  const recentEvents = myEvents.slice(0, 3);
+
+  const summary =
+    stats.myEvents === 0
+      ? "You haven't put up any events yet. When you do, they'll be listed here."
+      : `You've organised ${plural(stats.myEvents, 'event')} so far, and ${
+          stats.upcomingEvents === 0 ? 'none are' : stats.upcomingEvents === 1 ? '1 is' : `${stats.upcomingEvents} are`
+        } still coming up.`;
+
+  const profileLine = [
+    user?.department,
+    user?.faculty_id && `ID ${user.faculty_id}`,
+    user?.status,
+  ].filter(Boolean);
+
   return (
-    <div>
-      {/* Welcome Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Faculty Dashboard</h1>
-        <p className="text-gray-600">Welcome back, {user?.name}! Manage your events and track participation.</p>
-        <div className="flex flex-wrap gap-3 mt-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-            <p className="text-sm text-blue-600">Department</p>
-            <p className="font-semibold">{user?.department}</p>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-            <p className="text-sm text-green-600">Faculty ID</p>
-            <p className="font-semibold">{user?.faculty_id}</p>
-          </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
-            <p className="text-sm text-purple-600">Status</p>
-            <p className="font-semibold capitalize">{user?.status}</p>
-          </div>
+    <div className="space-y-10">
+      {/* Header */}
+      <FadeIn className="flex flex-col gap-6 border-b pb-8 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <p className="meta mb-3">{formatLongDate()}</p>
+          <h1 className="text-[2.2rem] leading-[1.1] sm:text-[2.8rem]">
+            {timeOfDay()}
+            {firstName ? <>, <em>{firstName}</em>.</> : '.'}
+          </h1>
+          <p className="text-muted-foreground mt-3 text-[1.05rem]">
+            {summary}
+            {nextEvent && (
+              <>
+                {' '}Next up is{' '}
+                <Link to={`/events/${nextEvent.id}`} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
+                  {nextEvent.title}
+                </Link>{' '}
+                on {formatDate(nextEvent.event_date, { year: undefined })}.
+              </>
+            )}
+          </p>
+          {profileLine.length > 0 && (
+            <p className="meta mt-4 capitalize">{profileLine.join(' · ')}</p>
+          )}
         </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-              <CalendarIcon className="h-8 w-8" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500">My Events</p>
-              <p className="text-2xl font-bold">{stats.myEvents}</p>
-            </div>
-          </div>
+        <div className="flex shrink-0 items-center gap-4">
+          <Link to="/faculty/my-events" className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline">
+            My events
+          </Link>
+          {createButton}
         </div>
+      </FadeIn>
 
-        {/* <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-100 text-green-600">
-              <UserGroupIcon className="h-8 w-8" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500">Total Participants</p>
-              <p className="text-2xl font-bold">{stats.totalParticipants}</p>
-            </div>
-          </div>
-        </div> */}
+      {/* Figures */}
+      <FadeIn delay={0.05}>
+        <StatRow>
+          <StatCard label="Events you've organised" value={stats.myEvents} />
+          <StatCard label="Coming up" value={stats.upcomingEvents} tone="accent" />
+          <StatCard label="Already done" value={completed} />
+        </StatRow>
+      </FadeIn>
 
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-              <ChartBarIcon className="h-8 w-8" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm text-gray-500">Upcoming Events</p>
-              <p className="text-2xl font-bold">{stats.upcomingEvents}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* My Recent Events */}
-        <div className="bg-white rounded-xl shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-800">My Recent Events</h2>
-            <Link to="/faculty/my-events" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-              View All →
-            </Link>
-          </div>
-          <div className="p-6">
-            {myEvents.slice(0, 3).length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-gray-500 mb-4">No events created yet</p>
-                <Link
-                  to="/create-event"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  <PlusIcon className="h-5 w-5 mr-2" />
-                  Create First Event
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {myEvents.slice(0, 3).map(event => (
-                  <Link
-                    key={event.id}
-                    to={`/events/${event.id}`}
-                    className="block p-4 border rounded-lg hover:bg-gray-50 transition"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium text-gray-800">{event.title}</h3>
-                        <p className="text-sm text-gray-500">
-                          {new Date(event.event_date).toLocaleDateString()} • {event.category}
-                        </p>
-                      </div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        new Date(event.event_date) >= new Date()
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {new Date(event.event_date) >= new Date() ? 'Upcoming' : 'Past'}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_220px]">
+        {/* Recent events */}
+        <FadeIn delay={0.1}>
+          <div className="mb-5 flex items-baseline justify-between gap-4">
+            <h2 className="text-2xl">Your recent events</h2>
+            {myEvents.length > 0 && (
+              <Link
+                to="/faculty/my-events"
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
+              >
+                See all <ArrowRight className="size-3.5" strokeWidth={1.75} />
+              </Link>
             )}
           </div>
-        </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800">Quick Actions</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              <Link
-                to="/create-event"
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition group"
-              >
-                <div className="flex items-center">
-                  <div className="p-2 rounded-full bg-blue-100 text-blue-600 mr-4">
-                    <PlusIcon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">Create New Event</h3>
-                    <p className="text-sm text-gray-500">Organize a new college event</p>
-                  </div>
-                </div>
-                <span className="text-gray-400 group-hover:text-gray-600">→</span>
-              </Link>
-
-              <Link
-                to="/events"
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition group"
-              >
-                <div className="flex items-center">
-                  <div className="p-2 rounded-full bg-green-100 text-green-600 mr-4">
-                    <CalendarIcon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">Browse All Events</h3>
-                    <p className="text-sm text-gray-500">View all college events</p>
-                  </div>
-                </div>
-                <span className="text-gray-400 group-hover:text-gray-600">→</span>
-              </Link>
-
-              <Link
-                to="/gallery"
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition group"
-              >
-                <div className="flex items-center">
-                  <div className="p-2 rounded-full bg-purple-100 text-purple-600 mr-4">
-                    <UserGroupIcon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">Event Gallery</h3>
-                    <p className="text-sm text-gray-500">View photos from past events</p>
-                  </div>
-                </div>
-                <span className="text-gray-400 group-hover:text-gray-600">→</span>
-              </Link>
+          {recentEvents.length === 0 ? (
+            <EmptyState
+              title="No events yet"
+              description="Post your first event and students will be able to find and register for it."
+              action={createButton}
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {recentEvents.map(event => (
+                <EventCard key={event.id} event={event} compact actions={renderEventActions(event)} />
+              ))}
             </div>
-          </div>
-        </div>
+          )}
+        </FadeIn>
+
+        {/* Elsewhere */}
+        <FadeIn delay={0.15} className="lg:border-l lg:pl-8">
+          <h2 className="mb-3 text-lg">Elsewhere</h2>
+          <ul className="space-y-2.5 text-sm">
+            <li>
+              <Link to="/events" className="underline decoration-foreground/25 underline-offset-4 hover:decoration-foreground">
+                Browse every event on campus
+              </Link>
+            </li>
+            <li>
+              <Link to="/gallery" className="underline decoration-foreground/25 underline-offset-4 hover:decoration-foreground">
+                Photos from past events
+              </Link>
+            </li>
+          </ul>
+        </FadeIn>
       </div>
+
+      {deleteDialog}
     </div>
   );
 };

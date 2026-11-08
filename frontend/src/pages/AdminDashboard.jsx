@@ -2,24 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
-import {
-  UsersIcon,
-  CalendarIcon,
-  ChartBarIcon,
-  DocumentTextIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  UserGroupIcon,
-  ClockIcon,
-  ChatBubbleLeftRightIcon,
-  ArrowTrendingUpIcon
-} from '@heroicons/react/24/outline';
+import { toast } from 'sonner';
+import { ArrowRight, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/misc';
+import StatCard, { StatRow } from '@/components/common/StatCard';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { FadeIn } from '@/components/common/motion';
+import { cn, formatDate, formatLongDate, getCategoryStyle, timeOfDay } from '@/lib/utils';
+
+const SHORTCUTS = [
+  { to: '/events', label: 'All events', note: 'edit or remove' },
+  { to: '/admin/users', label: 'People', note: 'students and faculty' },
+  { to: '/gallery', label: 'Gallery', note: 'photos from past events' },
+  { to: '/admin/reports', label: 'Reports', note: 'PDF summaries' },
+];
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+const DashboardSkeleton = () => (
+  <div className="space-y-10">
+    <div className="space-y-3">
+      <Skeleton className="h-4 w-40" />
+      <Skeleton className="h-10 w-72" />
+      <Skeleton className="h-4 w-96 max-w-full" />
+    </div>
+    <Skeleton className="h-24 w-full rounded-md" />
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <Skeleton className="h-72 rounded-md" />
+      <Skeleton className="h-72 rounded-md" />
+    </div>
+  </div>
+);
+
+const SectionTitle = ({ children, aside }) => (
+  <div className="mb-1 flex items-baseline justify-between gap-4 border-b pb-2">
+    <h2 className="text-xl">{children}</h2>
+    {aside}
+  </div>
+);
 
 const AdminDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [pendingFaculty, setPendingFaculty] = useState([]);
   const [events, setEvents] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
   const [stats, setStats] = useState({
     totalEvents: 0,
     totalStudents: 0,
@@ -32,6 +59,7 @@ const AdminDashboard = () => {
     monthlyRegistrations: 0
   });
   const [loading, setLoading] = useState(true);
+  const [eventToDelete, setEventToDelete] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -43,11 +71,12 @@ const AdminDashboard = () => {
       const [facultyRes, eventsRes, statsRes] = await Promise.all([
         axios.get('http://localhost:5000/api/users/pending'),
         axios.get('http://localhost:5000/api/events'),
-        axios.get('http://localhost:5000/api/stats/dashboard') // ✅ Use real stats endpoint
+        axios.get('http://localhost:5000/api/stats/dashboard')
       ]);
-      
+
       setPendingFaculty(facultyRes.data);
       setEvents(eventsRes.data.slice(0, 5));
+      setAllEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
       setStats(statsRes.data);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -62,7 +91,7 @@ const AdminDashboard = () => {
       await axios.put(`http://localhost:5000/api/users/${facultyId}/approve`);
       toast.success('Faculty approved successfully');
       fetchDashboardData(); // Refresh data
-    } catch (error) {
+    } catch {
       toast.error('Failed to approve faculty');
     }
   };
@@ -72,305 +101,258 @@ const AdminDashboard = () => {
       await axios.delete(`http://localhost:5000/api/users/${facultyId}`);
       toast.success('Faculty rejected');
       fetchDashboardData(); // Refresh data
-    } catch (error) {
+    } catch {
       toast.error('Failed to reject faculty');
     }
   };
-  
-  const handleDeleteEvent = async (eventId, eventTitle) => {
-    if (!window.confirm(`Are you sure you want to delete "${eventTitle}"?`)) return;
-    
+
+  // Called after the user confirms in the ConfirmDialog (replaces window.confirm)
+  const handleDeleteEvent = async (eventId) => {
     try {
       await axios.delete(`http://localhost:5000/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchDashboardData(); // Refresh data
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete event');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <DashboardSkeleton />;
+
+  // Category breakdown computed from the already-fetched events list
+  const categoryCounts = allEvents.reduce((acc, e) => {
+    const key = e.category || 'other';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const categoryRows = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+  const maxCategory = categoryRows.length ? categoryRows[0][1] : 0;
+
+  const firstName = user?.name?.split(' ')[0] || 'Admin';
+  const pendingCount = stats.pendingFaculty || 0;
+  const summary = [
+    plural(stats.upcomingEvents || 0, 'upcoming event', 'upcoming events'),
+    pendingCount === 0
+      ? 'nobody waiting for approval'
+      : `${plural(pendingCount, 'faculty member', 'faculty members')} waiting for approval`,
+    `${plural(stats.monthlyRegistrations || 0, 'registration', 'registrations')} this month`,
+  ].join(', ');
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Navbar */}
-      <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {user?.name}</span>
-              <button
-                onClick={logout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+    <div className="space-y-10">
+      {/* Header */}
+      <FadeIn className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="meta mb-2">{formatLongDate()}</p>
+          <h1 className="text-[2.2rem] leading-[1.1] sm:text-[2.8rem]">
+            {timeOfDay()}, <em>{firstName}.</em>
+          </h1>
+          <p className="text-muted-foreground mt-3 max-w-xl">{summary.charAt(0).toUpperCase() + summary.slice(1)}.</p>
+        </div>
+        <Button asChild variant="accent" className="self-start sm:self-auto">
+          <Link to="/create-event">New event</Link>
+        </Button>
+      </FadeIn>
+
+      {/* Figures */}
+      <FadeIn delay={0.05}>
+        <StatRow>
+          <StatCard label="Events" value={stats.totalEvents} hint={`${stats.recentEvents} added in the last 7 days`} />
+          <StatCard label="Upcoming" value={stats.upcomingEvents} />
+          <StatCard label="Registrations" value={stats.totalParticipants} hint={`${stats.monthlyRegistrations} this month`} />
+          <StatCard label="Students" value={stats.totalStudents} />
+          <StatCard
+            label="Faculty"
+            value={stats.totalFaculty}
+            hint={pendingCount > 0 ? `${pendingCount} waiting for approval` : 'none waiting'}
+            tone={pendingCount > 0 ? 'accent' : undefined}
+          />
+        </StatRow>
+      </FadeIn>
+
+      <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
+        {/* Main column */}
+        <div className="min-w-0 space-y-12">
+          {/* Pending faculty approvals */}
+          <FadeIn delay={0.1}>
+            <section>
+              <SectionTitle
+                aside={
+                  <Link to="/admin/users" className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline">
+                    All people
+                  </Link>
+                }
               >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Events */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                <CalendarIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Events</p>
-                <p className="text-2xl font-bold">{stats.totalEvents}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {stats.recentEvents} new in 7 days
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Students */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <UsersIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Students</p>
-                <p className="text-2xl font-bold">{stats.totalStudents}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Faculty */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                <UserGroupIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Faculty</p>
-                <p className="text-2xl font-bold">{stats.totalFaculty}</p>
-                <p className="text-xs text-red-500 mt-1">
-                  {stats.pendingFaculty} pending approval
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Participants */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-                <ChartBarIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Participants</p>
-                <p className="text-2xl font-bold">{stats.totalParticipants}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {stats.monthlyRegistrations} this month
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Upcoming Events */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
-                <ClockIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Upcoming Events</p>
-                <p className="text-2xl font-bold">{stats.upcomingEvents}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Feedback */}
-          {/* <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-pink-100 text-pink-600">
-                <ChatBubbleLeftRightIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Feedback</p>
-                <p className="text-2xl font-bold">{stats.totalFeedback}</p>
-              </div>
-            </div>
-          </div> */}
-
-          {/* Growth Indicator */}
-          {/* <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-teal-100 text-teal-600">
-                <ArrowTrendingUpIcon className="h-8 w-8" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">System Health</p>
-                <p className="text-2xl font-bold text-green-600">Active</p>
-              </div>
-            </div>
-          </div> */}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pending Faculty Approvals */}
-          <div className="bg-white rounded-xl shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-800">Pending Faculty Approvals</h2>
-              <p className="text-sm text-gray-500">{stats.pendingFaculty} pending</p>
-            </div>
-            <div className="p-6">
+                Waiting for approval
+              </SectionTitle>
               {pendingFaculty.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No pending approvals</p>
+                <p className="text-muted-foreground py-6 text-sm">
+                  No faculty sign-ups to review. New ones will show up here.
+                </p>
               ) : (
-                <div className="space-y-4">
+                <ul className="divide-y">
                   {pendingFaculty.map(faculty => (
-                    <div key={faculty.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h3 className="font-medium">{faculty.name}</h3>
-                        <p className="text-sm text-gray-500">{faculty.email}</p>
-                        <p className="text-sm text-gray-500">{faculty.department}</p>
-                        <p className="text-xs text-gray-400">
-                          Applied: {new Date(faculty.created_at).toLocaleDateString()}
+                    <li key={faculty.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{faculty.name}</p>
+                        <p className="text-muted-foreground truncate text-sm">
+                          {faculty.department ? `${faculty.department} · ` : ''}{faculty.email}
                         </p>
+                        <p className="meta mt-1">Applied {formatDate(faculty.created_at)}</p>
                       </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => approveFaculty(faculty.id)}
-                          className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"
-                        >
-                          <CheckCircleIcon className="h-4 w-4 mr-1" />
+                      <div className="flex shrink-0 gap-2">
+                        <Button size="sm" onClick={() => approveFaculty(faculty.id)}>
                           Approve
-                        </button>
-                        <button
-                          onClick={() => rejectFaculty(faculty.id)}
-                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"
-                        >
-                          <XCircleIcon className="h-4 w-4 mr-1" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => rejectFaculty(faculty.id)}>
                           Reject
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
-            </div>
-          </div>
+            </section>
+          </FadeIn>
 
-          {/* Recent Events */}
-          <div className="bg-white rounded-xl shadow">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800">Recent Events</h2>
-                <p className="text-sm text-gray-500">{events.length} shown</p>
-              </div>
-              <Link to="/create-event" className="text-blue-600 hover:text-blue-800 font-medium">
-                + Create Event
-              </Link>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {events.map(event => {
-                  const isPastEvent = new Date(event.event_date) < new Date();
-                  
-                  return (
-                    <div
-                      key={event.id}
-                      className="p-4 border rounded-lg hover:bg-gray-50 transition"
-                    >
-                      <div className="flex justify-between items-start">
-                        <Link to={`/events/${event.id}`} className="flex-1">
-                          <div>
-                            <h3 className="font-medium text-gray-800">{event.title}</h3>
-                            <p className="text-sm text-gray-500">
-                              {new Date(event.event_date).toLocaleDateString()} • {event.location}
+          {/* Recent events */}
+          <FadeIn delay={0.15}>
+            <section>
+              <SectionTitle
+                aside={
+                  <Link to="/events" className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline">
+                    See all
+                  </Link>
+                }
+              >
+                Recent events
+              </SectionTitle>
+              {events.length === 0 ? (
+                <p className="text-muted-foreground py-6 text-sm">
+                  No events yet. <Link to="/create-event" className="text-foreground underline underline-offset-4">Post the first one</Link>.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {events.map(event => {
+                    const isPastEvent = new Date(event.event_date) < new Date();
+                    const cat = getCategoryStyle(event.category);
+                    const d = new Date(event.event_date);
+
+                    return (
+                      <li key={event.id} className="group flex items-center gap-4 py-3.5">
+                        <Link to={`/events/${event.id}`} className="flex min-w-0 flex-1 items-center gap-4">
+                          <div className="w-11 shrink-0 text-center leading-none">
+                            <span className="font-serif text-[1.7rem] font-medium tabular">{d.getDate()}</span>
+                            <span className="meta block">{d.toLocaleDateString('en-IN', { month: 'short' })}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="group-hover:text-primary truncate font-medium transition-colors">{event.title}</p>
+                            <p className="text-muted-foreground flex items-center gap-2 truncate text-sm">
+                              <span className={cn('size-2 shrink-0 rounded-full', cat.dot)} />
+                              <span>{cat.label}</span>
+                              {event.location && (
+                                <>
+                                  <span aria-hidden>·</span>
+                                  <span className="truncate">{event.location}</span>
+                                </>
+                              )}
                             </p>
                           </div>
                         </Link>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            isPastEvent
-                              ? 'bg-gray-100 text-gray-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={cn('meta', !isPastEvent && 'text-success')}>
                             {isPastEvent ? 'Past' : 'Upcoming'}
                           </span>
                           {isPastEvent && (
-                            <button
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Delete ${event.title}`}
                               onClick={(e) => {
                                 e.preventDefault();
-                                handleDeleteEvent(event.id, event.title);
+                                setEventToDelete({ id: event.id, title: event.title });
                               }}
-                              className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
                             >
-                              Delete
-                            </button>
+                              <Trash2 strokeWidth={1.75} />
+                            </Button>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </FadeIn>
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-8 bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Link
-              to="/events"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition text-center"
-            >
-              <DocumentTextIcon className="h-8 w-8 mx-auto text-gray-600 mb-2" />
-              <span className="font-medium">Manage All Events</span>
-            </Link>
-            
-            <Link
-              to="/admin/users"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition text-center"
-            >
-              <UsersIcon className="h-8 w-8 mx-auto text-gray-600 mb-2" />
-              <span className="font-medium">User Management</span>
-            </Link>
-            
-            <Link
-              to="/gallery"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition text-center"
-            >
-              <CalendarIcon className="h-8 w-8 mx-auto text-gray-600 mb-2" />
-              <span className="font-medium">Event Gallery</span>
-            </Link>
-            
-            <Link
-              to="/admin/reports"
-              className="p-4 border rounded-lg hover:bg-gray-50 transition text-center"
-            >
-              <ChartBarIcon className="h-8 w-8 mx-auto text-gray-600 mb-2" />
-              <span className="font-medium">View Reports</span>
-            </Link>
-          </div>
-        </div>
+        {/* Side column */}
+        <aside className="space-y-12">
+          <FadeIn delay={0.2}>
+            <section>
+              <SectionTitle aside={<span className="meta">{plural(allEvents.length, 'event', 'events')}</span>}>
+                By category
+              </SectionTitle>
+              {categoryRows.length === 0 ? (
+                <p className="text-muted-foreground py-6 text-sm">Nothing to count yet.</p>
+              ) : (
+                <ul className="mt-3 space-y-3.5">
+                  {categoryRows.map(([category, count]) => {
+                    const cat = getCategoryStyle(category);
+                    return (
+                      <li key={category}>
+                        <div className="flex items-baseline justify-between text-sm">
+                          <span>{cat.label}</span>
+                          <span className="meta tabular">{count}</span>
+                        </div>
+                        <div className="bg-border/70 mt-1.5 h-px">
+                          <div
+                            className={cn('h-[3px] -translate-y-px', cat.dot)}
+                            style={{ width: `${maxCategory ? (count / maxCategory) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </FadeIn>
+
+          <FadeIn delay={0.25}>
+            <section>
+              <SectionTitle>Shortcuts</SectionTitle>
+              <ul className="divide-y">
+                {SHORTCUTS.map(({ to, label, note }) => (
+                  <li key={to}>
+                    <Link to={to} className="group flex items-center justify-between gap-3 py-2.5">
+                      <span>
+                        <span className="group-hover:text-primary transition-colors">{label}</span>
+                        <span className="text-muted-foreground text-sm"> — {note}</span>
+                      </span>
+                      <ArrowRight className="text-muted-foreground group-hover:text-primary size-4 shrink-0 transition-colors" strokeWidth={1.75} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </FadeIn>
+        </aside>
       </div>
+
+      <ConfirmDialog
+        open={!!eventToDelete}
+        onOpenChange={(o) => !o && setEventToDelete(null)}
+        title="Delete event?"
+        description={eventToDelete ? `Are you sure you want to delete "${eventToDelete.title}"? This cannot be undone.` : undefined}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          const target = eventToDelete;
+          setEventToDelete(null);
+          if (target) handleDeleteEvent(target.id, target.title);
+        }}
+      />
     </div>
   );
 };

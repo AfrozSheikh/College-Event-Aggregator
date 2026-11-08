@@ -1,156 +1,227 @@
-import React from 'react';
+import React, { Suspense, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
+import {
+  LayoutDashboard,
+  CalendarDays,
+  CalendarPlus,
+  Images,
+  Users,
+  FileText,
+  ClipboardList,
+  MessageSquare,
+  FolderOpen,
+  LogOut,
+  Menu,
+  ChevronDown,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import ThemeToggle from '@/components/common/ThemeToggle';
+import Brand from '@/components/common/Brand';
+import { PageSkeleton } from '@/components/common/Loaders';
+import { Avatar, AvatarFallback } from '@/components/ui/misc';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import {
-  HomeIcon,
-  CalendarIcon,
-  PhotoIcon,
-  UserGroupIcon,
-  DocumentTextIcon,
-  ChartBarIcon,
-  ArrowRightOnRectangleIcon,
-} from '@heroicons/react/24/outline';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn, getInitials } from '@/lib/utils';
+
+const NAV = {
+  admin: [
+    { items: [{ name: 'Overview', path: '/admin', icon: LayoutDashboard }] },
+    {
+      section: 'Events',
+      items: [
+        { name: 'All events', path: '/events', icon: CalendarDays },
+        { name: 'New event', path: '/create-event', icon: CalendarPlus },
+        { name: 'Gallery', path: '/gallery', icon: Images },
+      ],
+    },
+    {
+      section: 'Admin',
+      items: [
+        { name: 'People', path: '/admin/users', icon: Users },
+        { name: 'Reports', path: '/admin/reports', icon: FileText },
+      ],
+    },
+  ],
+  faculty: [
+    { items: [{ name: 'Overview', path: '/faculty', icon: LayoutDashboard }] },
+    {
+      section: 'Events',
+      items: [
+        { name: 'All events', path: '/events', icon: CalendarDays },
+        { name: 'My events', path: '/faculty/my-events', icon: FolderOpen },
+        { name: 'New event', path: '/create-event', icon: CalendarPlus },
+        { name: 'Gallery', path: '/gallery', icon: Images },
+      ],
+    },
+  ],
+  student: [
+    { items: [{ name: 'Overview', path: '/student', icon: LayoutDashboard }] },
+    {
+      section: 'Events',
+      items: [
+        { name: 'Browse events', path: '/events', icon: CalendarDays },
+        { name: 'Gallery', path: '/gallery', icon: Images },
+      ],
+    },
+    {
+      section: 'Mine',
+      items: [
+        { name: 'Registrations', path: '/student/my-registrations', icon: ClipboardList },
+        { name: 'Feedback', path: '/student/my-feedback', icon: MessageSquare },
+      ],
+    },
+  ],
+};
+
+const NavList = ({ groups, pathname, onNavigate }) => (
+  <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+    {groups.map((group, gi) => (
+      <div key={group.section || gi}>
+        {group.section && <p className="meta mb-1.5 px-3">{group.section}</p>}
+        <div className="space-y-0.5">
+          {group.items.map((item) => {
+            const isActive = pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'relative flex items-center gap-3 rounded-md px-3 py-[7px] text-[14.5px] transition-colors',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground'
+                )}
+              >
+                {isActive && <span className="bg-primary absolute top-2 bottom-2 -left-3 w-[3px] rounded-r" />}
+                <item.icon className="size-4 opacity-80" strokeWidth={1.75} />
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    ))}
+  </nav>
+);
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const adminNav = [
-    { name: 'Dashboard', path: '/admin', icon: HomeIcon },
-    { name: 'All Events', path: '/events', icon: CalendarIcon },
-    { name: 'Create Event', path: '/create-event', icon: CalendarIcon },
-    { name: 'User Management', path: '/admin/users', icon: UserGroupIcon },
-    { name: 'Reports', path: '/admin/reports', icon: ChartBarIcon },
-    { name: 'Gallery', path: '/gallery', icon: PhotoIcon },
-  ];
+  const groups = NAV[user?.role] || [];
 
-  const facultyNav = [
-    { name: 'Dashboard', path: '/faculty', icon: HomeIcon },
-    { name: 'All Events', path: '/events', icon: CalendarIcon },
-    { name: 'Create Event', path: '/create-event', icon: CalendarIcon },
-    { name: 'My Events', path: '/faculty/my-events', icon: DocumentTextIcon },
-    { name: 'Gallery', path: '/gallery', icon: PhotoIcon },
-  ];
-
-  const studentNav = [
-    { name: 'Dashboard', path: '/student', icon: HomeIcon },
-    { name: 'All Events', path: '/events', icon: CalendarIcon },
-    { name: 'My Registrations', path: '/student/my-registrations', icon: DocumentTextIcon },
-    { name: 'My Feedback', path: '/student/my-feedback', icon: DocumentTextIcon },
-    { name: 'Gallery', path: '/gallery', icon: PhotoIcon },
-  ];
-
-  const getNavItems = () => {
-    switch (user?.role) {
-      case 'admin': return adminNav;
-      case 'faculty': return facultyNav;
-      case 'student': return studentNav;
-      default: return [];
-    }
-  };
+  const UserBlock = (
+    <div className="border-sidebar-border flex items-center gap-3 border-t px-5 py-4">
+      <Avatar className="size-8">
+        <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate text-sm font-medium">{user?.name}</p>
+        <p className="meta truncate capitalize">{user?.role}</p>
+      </div>
+      <Button variant="ghost" size="icon-sm" onClick={handleLogout} aria-label="Log out" className="text-muted-foreground">
+        <LogOut />
+      </Button>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* ================= DESKTOP SIDEBAR ================= */}
-      <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
-        <div className="flex flex-col flex-1 bg-gray-900">
-          <div className="flex items-center px-4 py-5">
-            <h1 className="text-xl font-bold text-white">
-              College Event Aggregator
-            </h1>
-          </div>
-
-          <nav className="flex-1 px-2 space-y-1">
-            {getNavItems().map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition ${
-                    isActive
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  <item.icon
-                    className={`mr-3 h-6 w-6 ${
-                      isActive
-                        ? 'text-white'
-                        : 'text-gray-400 group-hover:text-white'
-                    }`}
-                  />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
+    <div className="bg-background min-h-screen">
+      {/* Desktop sidebar */}
+      <aside className="bg-sidebar border-sidebar-border fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r lg:flex">
+        <div className="px-5 pt-5 pb-2">
+          <Brand />
         </div>
-      </div>
+        <NavList groups={groups} pathname={location.pathname} />
+        {UserBlock}
+      </aside>
 
-      {/* ================= MOBILE HEADER ================= */}
-      <div className="md:hidden bg-gray-900 text-white">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-bold">College Event System</h1>
-          <div className="flex items-center space-x-4">
+      {/* Mobile sidebar */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="bg-sidebar w-72 gap-0 p-0">
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetDescription className="sr-only">Main navigation menu</SheetDescription>
+          <div className="px-5 pt-5 pb-2">
+            <Brand />
+          </div>
+          <NavList groups={groups} pathname={location.pathname} onNavigate={() => setMobileOpen(false)} />
+          {UserBlock}
+        </SheetContent>
+      </Sheet>
+
+      <div className="flex min-h-screen flex-col lg:pl-60">
+        <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 sm:px-6">
+          <Button variant="ghost" size="icon" className="-ml-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+            <Menu />
+          </Button>
+          <Brand compact className="lg:hidden" />
+
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle />
             <NotificationBell />
-            <span className="text-sm">{user?.name}</span>
-            <button onClick={handleLogout} className="p-1">
-              <ArrowRightOnRectangleIcon className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
 
-        <nav className="flex overflow-x-auto py-2 px-4 space-x-4">
-          {getNavItems().map((item) => (
-            <Link
-              key={item.name}
-              to={item.path}
-              className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                location.pathname === item.path
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              {item.name}
-            </Link>
-          ))}
-        </nav>
-      </div>
-
-      {/* ================= DESKTOP CONTENT + TOP BAR ================= */}
-      <div className="md:pl-64 flex flex-col min-h-screen">
-        {/* Desktop Top Bar */}
-        <div className="hidden md:flex bg-white border-b border-gray-200 px-6 py-3 justify-end items-center">
-          <div className="flex items-center space-x-4">
-            <NotificationBell />
-            <div className="text-sm text-gray-700">
-              <span className="font-medium">{user?.name}</span>
-              <span className="ml-2 text-gray-500 capitalize">
-                ({user?.role})
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-red-600 hover:text-red-800 font-medium"
-            >
-              Logout
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="hover:bg-accent ml-1 flex cursor-pointer items-center gap-2 rounded-md py-1 pr-1.5 pl-1 transition-colors outline-none">
+                  <Avatar className="size-7">
+                    <AvatarFallback className="text-[12px]">{getInitials(user?.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="hidden max-w-[150px] truncate text-sm md:block">{user?.name}</span>
+                  <ChevronDown className="text-muted-foreground hidden size-3.5 md:block" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <p className="truncate text-sm font-medium">{user?.name}</p>
+                  <p className="text-muted-foreground truncate text-xs">{user?.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {groups[0]?.items[0] && (
+                  <DropdownMenuItem onClick={() => navigate(groups[0].items[0].path)}>
+                    <LayoutDashboard /> Overview
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => navigate('/events')}>
+                  <CalendarDays /> Events
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                  <LogOut /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </div>
+        </header>
 
-        {/* Main Content */}
-        <main className="flex-1 py-6">
-          <div className="mx-auto px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
+        <main className="flex-1">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10"
+          >
+            <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+          </motion.div>
         </main>
       </div>
     </div>

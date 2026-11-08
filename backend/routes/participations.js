@@ -10,7 +10,8 @@ router.get('/student/:studentId', async (req, res) => {
       const { studentId } = req.params;
       
       const [participations] = await pool.query(
-        `SELECT p.*, e.title as event_title, e.event_date, e.location, e.category 
+        `SELECT p.*, e.title as event_title, e.event_date, e.location, e.category,
+                ${participationController.PARTICIPATION_FILE_URLS}
          FROM participations p 
          LEFT JOIN events e ON p.event_id = e.id 
          WHERE p.student_id = ? 

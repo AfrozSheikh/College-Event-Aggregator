@@ -2,10 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
-// import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
+import { Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import PageHeader from '@/components/common/PageHeader';
+import EventCard from '@/components/common/EventCard';
+import EmptyState from '@/components/common/EmptyState';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { FadeIn } from '@/components/common/motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/misc';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn, getCategoryStyle } from '@/lib/utils';
+
 const EventsPage = () => {
-const [registrationStatus, setRegistrationStatus] = useState({});
+  const [registrationStatus, setRegistrationStatus] = useState({});
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,14 +26,15 @@ const [registrationStatus, setRegistrationStatus] = useState({});
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [eventType, setEventType] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
   const categories = [
-    'all', 'technical', 'cultural', 'sports', 
+    'all', 'technical', 'cultural', 'sports',
     'workshop', 'seminar', 'competition', 'conference'
   ];
-  
+
   const departments = [
     'all', 'CSE', 'IT', 'AI', 'EE', 'MECH', 'CIVIL', 'ENTC', 'Chemical', 'Robotics'
   ];
@@ -36,12 +50,13 @@ const [registrationStatus, setRegistrationStatus] = useState({});
   useEffect(() => {
     filterEvents();
   }, [events, searchTerm, selectedCategory, selectedDepartment, eventType]);
+
   useEffect(() => {
     if (user?.role === 'student') {
       checkRegistrationStatus();
     }
   }, [user, filteredEvents]);
-  
+
   const checkRegistrationStatus = async () => {
     try {
       const statusMap = {};
@@ -56,11 +71,12 @@ const [registrationStatus, setRegistrationStatus] = useState({});
       console.error('Error checking registration status:', error);
     }
   };
+
   const fetchEvents = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/events');
       setEvents(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
@@ -82,7 +98,7 @@ const [registrationStatus, setRegistrationStatus] = useState({});
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(event => event.category === selectedCategory);
     }
-    
+
     // Filter by department
     if (selectedDepartment !== 'all') {
       filtered = filtered.filter(event => event.organizer_department === selectedDepartment);
@@ -101,233 +117,266 @@ const [registrationStatus, setRegistrationStatus] = useState({});
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
-
     try {
       await axios.delete(`http://localhost:5000/api/events/${eventId}`);
       toast.success('Event deleted successfully');
       fetchEvents();
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete event');
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading events...</div>;
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setSelectedDepartment('all');
+    setEventType('all');
+  };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">All Events</h1>
-            <p className="text-gray-600">Browse and participate in exciting college events</p>
-          </div>
-          
-          {(user?.role === 'admin' || user?.role === 'faculty') && (
-            <Link
-              to="/create-event"
-              className="mt-4 md:mt-0 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
-            >
-              + Create New Event
+  const canManageEvents = user?.role === 'admin' || user?.role === 'faculty';
+  const hasActiveFilters =
+    searchTerm !== '' || selectedCategory !== 'all' || selectedDepartment !== 'all' || eventType !== 'all';
+
+  const header = (
+    <PageHeader
+      title="Events"
+      description={
+        loading
+          ? 'Everything happening around campus, past and upcoming.'
+          : `${events.length} ${events.length === 1 ? 'event' : 'events'} on the board, past and upcoming.`
+      }
+      actions={
+        canManageEvents && (
+          <Button asChild variant="accent">
+            <Link to="/create-event">
+              <Plus /> New event
             </Link>
-          )}
-        </div>
+          </Button>
+        )
+      }
+    />
+  );
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search events..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              />
-            </div>
-
-            {/* Event Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Event Type</label>
-              <select
-                value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              >
-                <option value="all">All Events</option>
-                <option value="future">Upcoming Events</option>
-                <option value="past">Past Events</option>
-              </select>
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat === 'all' ? 'All Categories' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Department */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-              <select
-                value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-              >
-                {departments.map(dept => (
-                  <option key={dept} value={dept}>
-                    {dept === 'all' ? 'All Departments' : dept}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Reset */}
-            <div className="flex items-end">
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('all');
-                  setSelectedDepartment('all');
-                  setEventType('all');
-                }}
-                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
-              >
-                Reset Filters
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Events Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <p className="text-gray-500 text-lg">No events found</p>
-              <p className="text-gray-400 mt-2">Try adjusting your filters</p>
-            </div>
-          ) : (
-            filteredEvents.map(event => (
-              <div key={event.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition">
-                {/* Event Image */}
-                {event.images && event.images.length > 0 ? (
-                  <div className="h-48 overflow-hidden">
-                    <img
-                      src={`http://localhost:5000/${event.images[0].image_path}`}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-48 bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
-                    <span className="text-gray-400">No Image</span>
-                  </div>
-                )}
-
-                {/* Event Details */}
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-bold text-gray-800">{event.title}</h3>
-                    <span className={`px-3 py-1 text-xs rounded-full ${
-                      new Date(event.event_date) >= new Date()
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {new Date(event.event_date) >= new Date() ? 'Upcoming' : 'Past'}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
-
-                  <div className="space-y-2 mb-6">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      {new Date(event.event_date).toLocaleDateString()}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {event.location}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                      {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-between">
-                    <Link
-                      to={`/events/${event.id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                      View Details
-                    </Link>
-
-                    {/* Admin/Faculty Actions */}
-                    {(user?.role === 'admin' || user?.role === 'faculty') && (
-                      <div className="flex space-x-2">
-                        <Link
-                          to={`/edit-event/${event.id}`}
-                          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteEvent(event.id)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {user?.role === 'student' && new Date(event.event_date) >= new Date() && (
-  <div className="mt-4">
-    <Link
-      to={`/events/${event.id}/participate`}
-      className={`block w-full text-center px-4 py-2 rounded-lg transition ${
-        registrationStatus[event.id]
-          ? 'bg-gray-400 text-white cursor-not-allowed'
-          : 'bg-green-600 text-white hover:bg-green-700'
-      }`}
-      onClick={e => {
-        if (registrationStatus[event.id]) {
-          e.preventDefault();
-          toast.error('You are already registered for this event');
-        }
-      }}
-    >
-      {registrationStatus[event.id] ? 'Already Registered' : 'Register Now'}
-    </Link>
-  </div>
-)}
-
-                </div>
+  if (loading) {
+    return (
+      <div>
+        {header}
+        <Skeleton className="mb-8 h-10 w-full max-w-xl" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="overflow-hidden rounded-lg border">
+              <Skeleton className="h-44 rounded-none" />
+              <div className="space-y-3 p-4">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
               </div>
-            ))
-          )}
+            </div>
+          ))}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div>
+      {header}
+
+      {/* Filters: one quiet row, then the category chips */}
+      <FadeIn delay={0.05} className="mb-8 space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1 lg:max-w-sm">
+            <Search
+              strokeWidth={1.75}
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            />
+            <Input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search title, description or venue"
+              aria-label="Search events"
+              className="pr-9 pl-9"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label="Clear search"
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-0.5 transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+
+          <Tabs value={eventType} onValueChange={setEventType} className="lg:ml-4">
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="future">Upcoming</TabsTrigger>
+              <TabsTrigger value="past">Past</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-center gap-2 lg:ml-auto">
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="w-full sm:w-44" aria-label="Department">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map(dept => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept === 'all' ? 'All departments' : dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="scrollbar-none -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {categories.map(cat => {
+            const style = getCategoryStyle(cat);
+            const active = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                aria-pressed={active}
+                className={cn(
+                  'focus-visible:ring-ring/50 inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2',
+                  active
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+                )}
+              >
+                {cat === 'all' ? (
+                  'Any category'
+                ) : (
+                  <>
+                    <span className={cn('size-1.5 rounded-full', style.dot)} />
+                    {style.label}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="meta">
+          Showing {filteredEvents.length} of {events.length}
+        </p>
+      </FadeIn>
+
+      {filteredEvents.length === 0 ? (
+        <EmptyState
+          title={hasActiveFilters ? 'Nothing matches those filters' : 'No events posted yet'}
+          description={
+            hasActiveFilters
+              ? 'Try another category or department, or clear the filters to see everything.'
+              : 'Check back soon – new events show up here as soon as they are posted.'
+          }
+          action={
+            hasActiveFilters && (
+              <Button variant="outline" onClick={resetFilters}>
+                Clear filters
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <FadeIn
+          key={`${eventType}-${selectedCategory}-${selectedDepartment}`}
+          className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
+        >
+          {filteredEvents.map(event => {
+            const isUpcoming = new Date(event.event_date) >= new Date();
+            const isRegistered = registrationStatus[event.id];
+            const guardRegistered = e => {
+              if (registrationStatus[event.id]) {
+                e.preventDefault();
+                toast.error('You are already registered for this event');
+              }
+            };
+            return (
+              <EventCard
+                key={event.id}
+                event={event}
+                badge={
+                  user?.role === 'student' && isRegistered ? (
+                    <Badge variant="success">
+                      <Check /> Registered
+                    </Badge>
+                  ) : null
+                }
+                actions={
+                  <>
+                    {user?.role === 'student' && isUpcoming && (
+                      isRegistered ? (
+                        <Link
+                          to={`/events/${event.id}/participate`}
+                          onClick={guardRegistered}
+                          className="text-success inline-flex cursor-not-allowed items-center gap-1 text-sm font-medium"
+                        >
+                          <Check className="size-4" /> You're in
+                        </Link>
+                      ) : (
+                        <Button asChild size="sm" variant="accent">
+                          <Link to={`/events/${event.id}/participate`} onClick={guardRegistered}>
+                            Register
+                          </Link>
+                        </Button>
+                      )
+                    )}
+
+                    {canManageEvents && (
+                      <div className="flex gap-0.5">
+                        <Button asChild size="icon-sm" variant="ghost" aria-label="Edit event">
+                          <Link to={`/edit-event/${event.id}`}>
+                            <Pencil strokeWidth={1.75} />
+                          </Link>
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Delete event"
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setDeleteTarget(event)}
+                        >
+                          <Trash2 strokeWidth={1.75} />
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                }
+              />
+            );
+          })}
+        </FadeIn>
+      )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete this event?"
+        description={
+          deleteTarget
+            ? `"${deleteTarget.title}" and all its data will be permanently removed. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete event"
+        onConfirm={() => {
+          handleDeleteEvent(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 };

@@ -2,17 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
-import { BellAlertIcon } from '@heroicons/react/24/outline';
-import {
-  CalendarIcon,
-  CheckCircleIcon,
-  PhotoIcon,
-  ChatBubbleLeftRightIcon
-} from '@heroicons/react/24/outline';
+import { toast } from 'sonner';
+import { ArrowRight, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import StatCard, { StatRow } from '@/components/common/StatCard';
+import EventCard from '@/components/common/EventCard';
+import EmptyState from '@/components/common/EmptyState';
+import { PageSkeleton } from '@/components/common/Loaders';
+import { FadeIn } from '@/components/common/motion';
+import { cn, formatLongDate, getCategoryStyle, timeOfDay } from '@/lib/utils';
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 const StudentDashboard = () => {
-  const { user, logout, notifications } = useAuth(); // Added notifications from useAuth
+  const { user, notifications } = useAuth();
   const [futureEvents, setFutureEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +35,7 @@ const StudentDashboard = () => {
       setUnreadCount(unread);
     }
   }, [notifications]);
-  
+
   useEffect(() => {
     if (user && futureEvents.length > 0) {
       checkRegistrationStatus();
@@ -43,7 +47,7 @@ const StudentDashboard = () => {
       checkFeedbackStatus();
     }
   }, [user, pastEvents]);
-  
+
   const checkRegistrationStatus = async () => {
     try {
       const statusMap = {};
@@ -80,503 +84,268 @@ const StudentDashboard = () => {
         axios.get('http://localhost:5000/api/events/type/future'),
         axios.get('http://localhost:5000/api/events/type/past')
       ]);
-      
+
       setFutureEvents(futureRes.data.slice(0, 3));
       setPastEvents(pastRes.data.slice(0, 3));
-    } catch (error) {
+    } catch {
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  const handleRegisterClick = (e, eventId) => {
+    if (registrationStatus[eventId]) {
+      e.preventDefault();
+      toast.error('You are already registered for this event');
+    }
+  };
+
+  const handleFeedbackClick = (e, eventId) => {
+    if (feedbackStatus[eventId]) {
+      e.preventDefault();
+      toast.error('You have already submitted feedback for this event');
+    }
+  };
+
+  if (loading) return <PageSkeleton stats={4} cards={3} />;
+
+  const registeredCount = futureEvents.filter(event => registrationStatus[event.id]).length;
+  const pendingFeedbackEvents = pastEvents.filter(event => feedbackStatus[event.id] === false);
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const registrationSentence =
+    futureEvents.length === 0
+      ? 'No upcoming events have been posted yet.'
+      : `You're registered for ${registeredCount} of the ${futureEvents.length === 1 ? '1 upcoming event' : `next ${futureEvents.length} upcoming events`}.`;
+  const feedbackSentence =
+    pendingFeedbackEvents.length === 0
+      ? 'Nothing waiting for feedback.'
+      : `${plural(pendingFeedbackEvents.length, 'event')} waiting for your feedback.`;
+  const courseLine = [user?.course, user?.year].filter(Boolean).join(', ');
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Navbar */}
-      <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {user?.name}</span>
-              <Link
-                to="/events"
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Browse All Events
-              </Link>
-              <button
-                onClick={logout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Card */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg p-8 text-white mb-8">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Welcome back, {user?.name}!</h2>
-              <p className="mb-4">Stay updated with upcoming events and participate in exciting activities.</p>
-              
-              {/* 🔔 Notifications Alert - Fixed with proper null check */}
-              {notifications && Array.isArray(notifications) && unreadCount > 0 && (
-                <div className="flex items-center bg-white bg-opacity-20 rounded-lg p-3 mb-4">
-                  <BellAlertIcon className="h-5 w-5 mr-2" />
-                  <span>You have {unreadCount} new notification(s)</span>
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-4 text-black">
-                <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-                  <p className="text-sm">College</p>
-                  <p className="font-semibold">{user?.college_name}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-                  <p className="text-sm">Course & Year</p>
-                  <p className="font-semibold">{user?.course} - {user?.year}</p>
-                </div>
-                <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-                  <p className="text-sm">Email</p>
-                  <p className="font-semibold">{user?.email}</p>
-                </div>
-              </div>
-            </div>
+    <div className="space-y-12">
+      {/* Greeting */}
+      <FadeIn as="header" className="grid gap-8 pb-2 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="max-w-2xl">
+          <p className="meta">{formatLongDate()}</p>
+          <h1 className="mt-3 text-[2.4rem] leading-[1.05] sm:text-[3rem]">
+            {timeOfDay()}, <em>{firstName}.</em>
+          </h1>
+          <p className="text-muted-foreground mt-3 text-[1.05rem]">
+            {registrationSentence} {feedbackSentence}
+          </p>
+          {(user?.college_name || courseLine) && (
+            <p className="meta mt-3">
+              {[user?.college_name, courseLine].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            <Button asChild variant="accent">
+              <Link to="/events">Browse events</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/student/my-registrations">My registrations</Link>
+            </Button>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Link
-            to="/events"
-            className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
-          >
-            <CalendarIcon className="h-12 w-12 mx-auto text-blue-600 mb-4" />
-            <h3 className="font-semibold text-gray-800">Browse Events</h3>
-            <p className="text-sm text-gray-600 mt-2">Find and register for events</p>
-          </Link>
+        {/* Notifications note */}
+        {notifications && Array.isArray(notifications) && unreadCount > 0 && (
+          <div className="bg-card flex items-center gap-3 rounded-md border px-4 py-3 text-sm lg:max-w-xs">
+            <span className="bg-primary size-2 shrink-0 rounded-full" />
+            <span>
+              You have {plural(unreadCount, 'unread notification')}.
+            </span>
+          </div>
+        )}
+      </FadeIn>
 
-          <Link
-            to="/gallery"
-            className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
-          >
-            <PhotoIcon className="h-12 w-12 mx-auto text-green-600 mb-4" />
-            <h3 className="font-semibold text-gray-800">Event Gallery</h3>
-            <p className="text-sm text-gray-600 mt-2">View photos from past events</p>
-          </Link>
+      {/* Figures */}
+      <StatRow>
+        <StatCard label="Upcoming events" value={futureEvents.length} hint="Next few on the board" />
+        <StatCard label="Registered" value={registeredCount} hint="Of those upcoming" tone="accent" />
+        <StatCard label="Feedback to give" value={pendingFeedbackEvents.length} hint="From recent events" />
+        <StatCard label="Unread notifications" value={unreadCount} />
+      </StatRow>
 
-          <Link
-            to="/student/my-registrations"
-            className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
-          >
-            <CheckCircleIcon className="h-12 w-12 mx-auto text-purple-600 mb-4" />
-            <h3 className="font-semibold text-gray-800">My Registrations</h3>
-            <p className="text-sm text-gray-600 mt-2">Track your participation</p>
-          </Link>
+      {/* Pending feedback reminder */}
+      {pendingFeedbackEvents.length > 0 && (
+        <FadeIn>
+          <div className="bg-card rounded-md border border-l-4 border-l-warning px-5 py-4">
+            <h2 className="text-xl">Your feedback is waiting</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Tell the organisers how {pendingFeedbackEvents.length === 1 ? 'this event' : 'these events'} went. It takes a
+              minute or two.
+            </p>
+            <ul className="mt-3 divide-y border-t">
+              {pendingFeedbackEvents.map(event => (
+                <li key={event.id} className="flex items-center justify-between gap-4 py-2.5">
+                  <span className="min-w-0 truncate font-medium">{event.title}</span>
+                  <Link
+                    to={`/events/${event.id}/feedback-form`}
+                    className="text-primary shrink-0 text-sm font-medium underline-offset-4 hover:underline"
+                  >
+                    Give feedback
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </FadeIn>
+      )}
 
-          <Link
-  to="/student/my-feedback"
-  className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
->
-  <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto text-yellow-600 mb-4" />
-  <h3 className="font-semibold text-gray-800">My Feedback</h3>
-  <p className="text-sm text-gray-600 mt-2">View submitted feedback</p>
-</Link>
+      {/* Upcoming Events */}
+      <section>
+        <div className="mb-5 flex items-baseline justify-between gap-4 border-b pb-3">
+          <h2 className="text-2xl">Coming up</h2>
+          <Link to="/events" className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm">
+            All events <ArrowRight className="size-3.5" strokeWidth={1.75} />
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Upcoming Events */}
-          <div className="bg-white rounded-xl shadow">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">Upcoming Events</h2>
-              <Link to="/events" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                View All →
-              </Link>
-            </div>
-            <div className="p-6">
-              {futureEvents.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No upcoming events</p>
-              ) : (
-                <div className="space-y-4">
-                  {futureEvents.map(event => (
-                    <Link
-                      key={event.id}
-                      to={`/events/${event.id}`}
-                      className="block p-4 border rounded-lg hover:bg-gray-50 transition"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium text-gray-800">{event.title}</h3>
-                          <p className="text-sm text-gray-500">
-                            {new Date(event.event_date).toLocaleDateString()} • {event.location}
-                          </p>
-                        </div>
-                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                          {event.category}
-                        </span>
-                      </div>
-                      <div className="mt-2">
+        {futureEvents.length === 0 ? (
+          <EmptyState
+            title="Nothing on the board yet"
+            description="New events will show up here as soon as organisers publish them."
+            action={
+              <Button asChild variant="outline">
+                <Link to="/events">Browse all events</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {futureEvents.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                badge={
+                  registrationStatus[event.id] ? (
+                    <Badge variant="success">
+                      <Check /> Registered
+                    </Badge>
+                  ) : null
+                }
+                actions={
+                  <>
+                    {registrationStatus[event.id] ? (
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground cursor-not-allowed"
+                      >
                         <Link
                           to={`/events/${event.id}/participate`}
-                          className={`inline-block px-4 py-2 text-sm rounded-lg transition ${
-                            registrationStatus[event.id]
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          }`}
-                          onClick={(e) => {
-                            if (registrationStatus[event.id]) {
-                              e.preventDefault();
-                              toast.error('You are already registered for this event');
-                            }
-                          }}
+                          onClick={(e) => handleRegisterClick(e, event.id)}
+                          aria-disabled="true"
                         >
-                          {registrationStatus[event.id] ? 'Already Registered' : 'Register Now'}
+                          Already registered
                         </Link>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Past Events for Feedback */}
-          <div className="bg-white rounded-xl shadow">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">Past Events</h2>
-              <Link to="/events?type=past" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                View All →
-              </Link>
-            </div>
-            <div className="p-6">
-              {pastEvents.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No past events</p>
-              ) : (
-                <div className="space-y-4">
-                  {pastEvents.map(event => (
-                    <div key={event.id} className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium text-gray-800">{event.title}</h3>
-                          <p className="text-sm text-gray-500">
-                            {new Date(event.event_date).toLocaleDateString()} • {event.location}
-                          </p>
-                        </div>
-                        <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
-                          Completed
-                        </span>
-                      </div>
-                      <div className="mt-2 flex space-x-2">
+                      </Button>
+                    ) : (
+                      <Button asChild size="sm" variant="accent">
                         <Link
-                          to={`/events/${event.id}`}
-                          className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition"
+                          to={`/events/${event.id}/participate`}
+                          onClick={(e) => handleRegisterClick(e, event.id)}
                         >
-                          View Details
+                          Register
                         </Link>
+                      </Button>
+                    )}
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/events/${event.id}`}>Details</Link>
+                    </Button>
+                  </>
+                }
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Past Events for Feedback */}
+      <section>
+        <div className="mb-1 flex items-baseline justify-between gap-4 border-b pb-3">
+          <h2 className="text-2xl">Recently finished</h2>
+          <Link
+            to="/events?type=past"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+          >
+            Past events <ArrowRight className="size-3.5" strokeWidth={1.75} />
+          </Link>
+        </div>
+
+        {pastEvents.length === 0 ? (
+          <EmptyState
+            className="mt-4"
+            title="No finished events yet"
+            description="Once events wrap up, they'll be listed here so you can leave feedback."
+          />
+        ) : (
+          <ul className="divide-y border-b">
+            {pastEvents.map(event => {
+              const cat = getCategoryStyle(event.category);
+              const submitted = feedbackStatus[event.id];
+              const date = new Date(event.event_date);
+              return (
+                <li key={event.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-6">
+                  <div className="flex min-w-0 flex-1 items-center gap-5">
+                    <div className="w-11 shrink-0 text-center">
+                      <span className="meta block uppercase">
+                        {date.toLocaleDateString('en-IN', { month: 'short' })}
+                      </span>
+                      <span className="font-serif text-[1.7rem] leading-none font-medium tabular">{date.getDate()}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <Link to={`/events/${event.id}`} className="hover:text-primary transition-colors">
+                        <h3 className="truncate text-[1.1rem] leading-snug">{event.title}</h3>
+                      </Link>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', cat.text)}>
+                          <span className={cn('size-1.5 rounded-full', cat.dot)} />
+                          {cat.label}
+                        </span>
+                        <span className="meta truncate">{event.location}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2 pl-16 sm:pl-0">
+                    <Button asChild size="sm" variant="ghost">
+                      <Link to={`/events/${event.id}`}>Details</Link>
+                    </Button>
+                    {submitted ? (
+                      <Button asChild size="sm" variant="ghost" className="text-success cursor-not-allowed">
                         <Link
                           to={`/events/${event.id}/feedback-form`}
-                          className={`px-4 py-2 text-white text-sm rounded-lg transition ${
-                            feedbackStatus[event.id]
-                              ? 'bg-gray-400 cursor-not-allowed'
-                              : 'bg-yellow-600 hover:bg-yellow-700'
-                          }`}
-                          onClick={(e) => {
-                            if (feedbackStatus[event.id]) {
-                              e.preventDefault();
-                              toast.error('You have already submitted feedback for this event');
-                            }
-                          }}
+                          onClick={(e) => handleFeedbackClick(e, event.id)}
+                          aria-disabled="true"
                         >
-                          {feedbackStatus[event.id] ? 'Feedback Submitted' : 'Submit Feedback'}
+                          <Check /> Feedback sent
                         </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                      </Button>
+                    ) : (
+                      <Button asChild size="sm" variant="outline">
+                        <Link
+                          to={`/events/${event.id}/feedback-form`}
+                          onClick={(e) => handleFeedbackClick(e, event.id)}
+                        >
+                          Give feedback
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 };
 
 export default StudentDashboard;
-
-// import React, { useState, useEffect } from 'react';
-// import { Link } from 'react-router-dom';
-// import { useAuth } from '../context/AuthContext';
-// import axios from 'axios';
-// import toast from 'react-hot-toast';
-// import { BellAlertIcon } from '@heroicons/react/24/outline';
-// import {
-//   CalendarIcon,
-//   CheckCircleIcon,
-//   PhotoIcon,
-//   ChatBubbleLeftRightIcon
-// } from '@heroicons/react/24/outline';
-
-// const StudentDashboard = () => {
-//   const { user, logout } = useAuth();
-//   const [futureEvents, setFutureEvents] = useState([]);
-//   const [pastEvents, setPastEvents] = useState([]);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     fetchEvents();
-//   }, []);
-
-//   const fetchEvents = async () => {
-//     try {
-//       const [futureRes, pastRes] = await Promise.all([
-//         axios.get('http://localhost:5000/api/events/type/future'),
-//         axios.get('http://localhost:5000/api/events/type/past')
-//       ]);
-      
-//       setFutureEvents(futureRes.data.slice(0, 3));
-//       setPastEvents(pastRes.data.slice(0, 3));
-//     } catch (error) {
-//       toast.error('Failed to load events');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   if (loading) return <div>Loading...</div>;
-
-//   return (
-//     <div className="min-h-screen bg-gray-100">
-//       {/* Navbar */}
-//       <nav className="bg-white shadow-lg">
-//         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-//           <div className="flex justify-between h-16">
-//             <div className="flex items-center">
-//               <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
-//             </div>
-//             <div className="flex items-center space-x-4">
-//               <span className="text-gray-700">Welcome, {user?.name}</span>
-//               <Link
-//                 to="/events"
-//                 className="text-blue-600 hover:text-blue-800 font-medium"
-//               >
-//                 Browse All Events
-//               </Link>
-//               <button
-//                 onClick={logout}
-//                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-//               >
-//                 Logout
-//               </button>
-//             </div>
-//           </div>
-//         </div>
-//       </nav>
-
-//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-//         {/* Welcome Card */}
-//         {/* Welcome Card */}
-// <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg p-8 text-white mb-8">
-//   <div className="flex justify-between items-start">
-//     <div>
-//       <h2 className="text-2xl font-bold mb-2">
-//         Welcome back, {user?.name}!
-//       </h2>
-
-//       <p className="mb-4">
-//         Stay updated with upcoming events and participate in exciting activities.
-//       </p>
-
-//       {/* 🔔 Notifications Alert */}
-//       {notifications?.filter(n => !n.read).length > 0 && (
-//         <div className="flex items-center bg-white bg-opacity-20 rounded-lg p-3 mb-4">
-//           <BellAlertIcon className="h-5 w-5 mr-2" />
-//           <span>
-//             You have {notifications.filter(n => !n.read).length} new notification(s)
-//           </span>
-//         </div>
-//       )}
-
-//       {/* User Info Cards */}
-//       <div className="flex flex-wrap gap-4">
-//         <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//           <p className="text-sm">College</p>
-//           <p className="font-semibold">{user?.college_name}</p>
-//         </div>
-
-//         <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//           <p className="text-sm">Course & Year</p>
-//           <p className="font-semibold">
-//             {user?.course} - {user?.year}
-//           </p>
-//         </div>
-
-//         <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//           <p className="text-sm">Email</p>
-//           <p className="font-semibold">{user?.email}</p>
-//         </div>
-//       </div>
-//     </div>
-//   </div>
-// </div>
-
-//         {/* <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg p-8 text-white mb-8">
-//           <h2 className="text-2xl font-bold mb-2">Welcome back, {user?.name}!</h2>
-//           <p className="mb-4">Stay updated with upcoming events and participate in exciting activities.</p>
-//           <div className="flex flex-wrap gap-4">
-//             <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//               <p className="text-sm">College</p>
-//               <p className="font-semibold">{user?.college_name}</p>
-//             </div>
-//             <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//               <p className="text-sm">Course & Year</p>
-//               <p className="font-semibold">{user?.course} - {user?.year}</p>
-//             </div>
-//             <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-//               <p className="text-sm">Email</p>
-//               <p className="font-semibold">{user?.email}</p>
-//             </div>
-//           </div>
-//         </div> */}
-
-//         {/* Quick Actions */}
-//         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-//           <Link
-//             to="/events"
-//             className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
-//           >
-//             <CalendarIcon className="h-12 w-12 mx-auto text-blue-600 mb-4" />
-//             <h3 className="font-semibold text-gray-800">Browse Events</h3>
-//             <p className="text-sm text-gray-600 mt-2">Find and register for events</p>
-//           </Link>
-
-//           <Link
-//             to="/gallery"
-//             className="bg-white rounded-xl shadow p-6 hover:shadow-md transition text-center"
-//           >
-//             <PhotoIcon className="h-12 w-12 mx-auto text-green-600 mb-4" />
-//             <h3 className="font-semibold text-gray-800">Event Gallery</h3>
-//             <p className="text-sm text-gray-600 mt-2">View photos from past events</p>
-//           </Link>
-
-//           <div className="bg-white rounded-xl shadow p-6 text-center">
-//             <CheckCircleIcon className="h-12 w-12 mx-auto text-purple-600 mb-4" />
-//             <h3 className="font-semibold text-gray-800">My Registrations</h3>
-//             <p className="text-sm text-gray-600 mt-2">Track your participation</p>
-//           </div>
-
-//           <div className="bg-white rounded-xl shadow p-6 text-center">
-//             <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto text-yellow-600 mb-4" />
-//             <h3 className="font-semibold text-gray-800">My Feedback</h3>
-//             <p className="text-sm text-gray-600 mt-2">View submitted feedback</p>
-//           </div>
-//         </div>
-
-//         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-//           {/* Upcoming Events */}
-//           <div className="bg-white rounded-xl shadow">
-//             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-//               <h2 className="text-xl font-semibold text-gray-800">Upcoming Events</h2>
-//               <Link to="/events" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-//                 View All →
-//               </Link>
-//             </div>
-//             <div className="p-6">
-//               {futureEvents.length === 0 ? (
-//                 <p className="text-gray-500 text-center py-4">No upcoming events</p>
-//               ) : (
-//                 <div className="space-y-4">
-//                   {futureEvents.map(event => (
-//                     <Link
-//                       key={event.id}
-//                       to={`/events/${event.id}`}
-//                       className="block p-4 border rounded-lg hover:bg-gray-50 transition"
-//                     >
-//                       <div className="flex justify-between items-start">
-//                         <div>
-//                           <h3 className="font-medium text-gray-800">{event.title}</h3>
-//                           <p className="text-sm text-gray-500">
-//                             {new Date(event.event_date).toLocaleDateString()} • {event.location}
-//                           </p>
-//                         </div>
-//                         <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-//                           {event.category}
-//                         </span>
-//                       </div>
-//                       <div className="mt-2">
-//                         <Link
-//                           to={`/events/${event.id}/participate`}
-//                           className="inline-block px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
-//                         >
-//                           Register Now
-//                         </Link>
-//                       </div>
-//                     </Link>
-//                   ))}
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-
-//           {/* Past Events for Feedback */}
-//           <div className="bg-white rounded-xl shadow">
-//             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-//               <h2 className="text-xl font-semibold text-gray-800">Past Events</h2>
-//               <Link to="/events?type=past" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-//                 View All →
-//               </Link>
-//             </div>
-//             <div className="p-6">
-//               {pastEvents.length === 0 ? (
-//                 <p className="text-gray-500 text-center py-4">No past events</p>
-//               ) : (
-//                 <div className="space-y-4">
-//                   {pastEvents.map(event => (
-//                     <div key={event.id} className="p-4 border rounded-lg">
-//                       <div className="flex justify-between items-start">
-//                         <div>
-//                           <h3 className="font-medium text-gray-800">{event.title}</h3>
-//                           <p className="text-sm text-gray-500">
-//                             {new Date(event.event_date).toLocaleDateString()} • {event.location}
-//                           </p>
-//                         </div>
-//                         <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
-//                           Completed
-//                         </span>
-//                       </div>
-//                       <div className="mt-2 flex space-x-2">
-//                         <Link
-//                           to={`/events/${event.id}`}
-//                           className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition"
-//                         >
-//                           View Details
-//                         </Link>
-//                         <Link
-//                           to={`/events/${event.id}/feedback`}
-//                           className="px-4 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition"
-//                         >
-//                           Submit Feedback
-//                         </Link>
-//                       </div>
-//                     </div>
-//                   ))}
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default StudentDashboard;

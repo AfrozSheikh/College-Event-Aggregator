@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -28,8 +27,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Add with other imports
 const notificationRoutes = require('./routes/notifications');
 
@@ -42,6 +39,7 @@ const participationRoutes = require('./routes/participations');
 const feedbackRoutes = require('./routes/feedback');
 const feedbackFormRoutes = require('./routes/feedbackForms');
 const reportRoutes = require('./routes/reports');
+const fileRoutes = require('./routes/files');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -51,6 +49,7 @@ app.use('/api/participations', participationRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/feedback-forms', feedbackFormRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/files', fileRoutes); // images, QR codes, screenshots & reports stored in DB
 // Add with other routes
 app.use('/api/notifications', notificationRoutes);
 // Add with other imports

@@ -1,9 +1,16 @@
 -- ============================================================================
 -- College Event Management System - Complete Database Schema
 -- ============================================================================
--- Version: 2.0
--- Last Updated: January 2026
--- Description: Complete schema with all tables, indexes, and constraints
+-- Version: 3.0
+-- Last Updated: November 2026
+-- Description: Complete schema with all tables, indexes, and constraints.
+--              All uploaded files (event images, payment QR codes, payment
+--              screenshots, documents) and generated PDF reports are stored
+--              inside the database as BLOBs - nothing is written to disk.
+--
+-- NOTE: Upgrading an existing v2.0 database? Run
+--       `node scripts/migrate-files-to-db.js` from the backend folder instead
+--       of re-importing this file. It moves existing uploads into the DB.
 -- ============================================================================
 --
 -- SETUP INSTRUCTIONS (Run these FIRST in MySQL Workbench before importing schema)
@@ -69,7 +76,6 @@ CREATE TABLE events (
     rules_eligibility TEXT,
     max_participants INT,
     registration_fees DECIMAL(10, 2) DEFAULT 0,
-    payment_qr_code VARCHAR(500),
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -81,16 +87,46 @@ CREATE TABLE events (
 );
 
 -- ============================================================================
--- EVENT GALLERY TABLE
+-- EVENT PAYMENT QR TABLE (one QR image per event, stored in DB)
+-- ============================================================================
+CREATE TABLE event_payment_qr (
+    event_id INT PRIMARY KEY,
+    file_name VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    file_data MEDIUMBLOB NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- EVENT GALLERY TABLE (event images, stored in DB)
 -- ============================================================================
 CREATE TABLE event_gallery (
     id INT PRIMARY KEY AUTO_INCREMENT,
     event_id INT NOT NULL,
-    image_path VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    file_data LONGBLOB NOT NULL,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     INDEX idx_event_id (event_id)
+);
+
+-- ============================================================================
+-- EVENT REPORTS TABLE (generated PDF reports, stored in DB)
+-- ============================================================================
+CREATE TABLE event_reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL DEFAULT 'application/pdf',
+    file_data LONGBLOB NOT NULL,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    INDEX idx_event_reports (event_id)
 );
 
 -- ============================================================================
@@ -106,13 +142,28 @@ CREATE TABLE participations (
     college VARCHAR(150),
     course_year VARCHAR(100),
     team_members TEXT,
-    document_path VARCHAR(500),
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_event_student (event_id, student_id),
     INDEX idx_registered_at (registered_at)
+);
+
+-- ============================================================================
+-- PARTICIPATION FILES TABLE (payment screenshots / documents, stored in DB)
+-- ============================================================================
+CREATE TABLE participation_files (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    participation_id INT NOT NULL,
+    file_type ENUM('document', 'payment_screenshot') NOT NULL,
+    file_name VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    file_data LONGBLOB NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (participation_id) REFERENCES participations(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_participation_file (participation_id, file_type)
 );
 
 -- ============================================================================

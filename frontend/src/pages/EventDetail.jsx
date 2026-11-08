@@ -2,15 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { ArrowLeft, Check, FileText, Pencil, Star, Trash2, Users } from 'lucide-react';
 import FeedbackFormCreator from '../components/FeedbackFormCreator';
+import EmptyState from '@/components/common/EmptyState';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import ImageLightbox from '@/components/common/ImageLightbox';
+import StatCard, { StatRow } from '@/components/common/StatCard';
+import { FadeIn } from '@/components/common/motion';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/misc';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { cn, fileUrl, formatTime, getCategoryStyle } from '@/lib/utils';
+
+/* Small local helpers */
+const SectionTitle = ({ children, aside }) => (
+  <div className="mb-4 flex items-baseline justify-between gap-3">
+    <h2 className="text-xl">{children}</h2>
+    {aside}
+  </div>
+);
+
+const RatingStars = ({ value }) => {
+  const n = parseInt(value) || 0;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="flex gap-0.5" aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Star
+            key={i}
+            strokeWidth={1.5}
+            className={cn('size-3.5', i < n ? 'fill-foreground text-foreground' : 'text-muted-foreground/40')}
+          />
+        ))}
+      </span>
+      <span className="meta">{value}/5</span>
+    </span>
+  );
+};
 
 const EventDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [event, setEvent] = useState(null);
   const [participations, setParticipations] = useState([]);
   const [feedback, setFeedback] = useState([]);
@@ -19,10 +57,11 @@ const EventDetail = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState(null);
   const [showFeedbackCreator, setShowFeedbackCreator] = useState(false);
-const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
-  // useEffect(() => {
-  //   fetchEventData();
-  // }, [id]);
+  const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
   const checkRegistrationStatus = async () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/participations/check/${id}/${user.id}`);
@@ -31,7 +70,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
       console.error('Error checking registration status:', error);
     }
   };
-  
+
   const checkFeedbackStatus = async () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/feedback-forms/check/${id}/${user.id}`);
@@ -43,7 +82,7 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
 
   useEffect(() => {
     fetchEventData();
-    
+
     if (user?.role === 'student') {
       checkRegistrationStatus();
       checkFeedbackStatus();
@@ -57,26 +96,26 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
         user?.role === 'admin' ? axios.get(`http://localhost:5000/api/participations/event/${id}`) : Promise.resolve({ data: [] }),
         axios.get(`http://localhost:5000/api/feedback/event/${id}`)
       ]);
-      
+
       setEvent(eventRes.data);
       setParticipations(participationsRes.data);
       setFeedback(feedbackRes.data.feedback || []);
-      
+
       // Check if feedback form exists and fetch dynamic responses
       try {
         const formRes = await axios.get(`http://localhost:5000/api/feedback-forms/event/${id}`);
         const form = formRes.data;
         setFeedbackForm(form);
-        
+
         // Fetch dynamic feedback responses for everyone (to display in feedback tab)
         const responsesRes = await axios.get(`http://localhost:5000/api/feedback-forms/${form.id}/responses`);
         // Store dynamic responses in event state
         setEvent(prev => ({ ...prev, dynamicFeedbackResponses: responsesRes.data }));
-      } catch (error) {
+      } catch {
         // No feedback form exists yet
         setFeedbackForm(null);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to load event details');
       navigate('/events');
     } finally {
@@ -85,30 +124,63 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
-    
     try {
       await axios.delete(`http://localhost:5000/api/events/${id}`);
       toast.success('Event deleted successfully');
       navigate(user?.role === 'admin' ? '/admin' : '/faculty');
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete event');
     }
   };
 
   const generateReport = async () => {
+    setReportLoading(true);
     try {
       const response = await axios.get(`http://localhost:5000/api/reports/event/${id}`);
       toast.success('Report generated successfully');
       // Open report in new tab
       window.open(`http://localhost:5000${response.data.downloadUrl}`, '_blank');
-    } catch (error) {
+    } catch {
       toast.error('Failed to generate report');
+    } finally {
+      setReportLoading(false);
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
-  if (!event) return <div>Event not found</div>;
+  if (loading) {
+    return (
+      <div className="space-y-10">
+        <Skeleton className="h-4 w-24" />
+        <div className="grid gap-8 lg:grid-cols-5">
+          <div className="space-y-4 lg:col-span-3">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-12 w-4/5" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+          <Skeleton className="aspect-[4/3] rounded-md lg:col-span-2" />
+        </div>
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <Skeleton className="h-64 rounded-md" />
+          <Skeleton className="h-72 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <EmptyState
+        title="Event not found"
+        description="It may have been taken down. Have a look at the other events instead."
+        action={
+          <Button asChild variant="outline">
+            <Link to="/events"><ArrowLeft /> Back to events</Link>
+          </Button>
+        }
+      />
+    );
+  }
 
   const isPastEvent = new Date(event.event_date) < new Date();
   const canRegister = user?.role === 'student' && !isPastEvent;
@@ -116,492 +188,468 @@ const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
   const canManage = user?.role === 'admin' || (user?.role === 'faculty' && user.id === event.created_by);
   const canCreateFeedbackForm = user?.role === 'admin' || user?.role === 'faculty'; // All faculty can create feedback forms
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">{event.title}</h1>
-              <div className="flex flex-wrap gap-3 items-center">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  isPastEvent ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
-                }`}>
-                  {isPastEvent ? 'Past Event' : 'Upcoming Event'}
-                </span>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium capitalize">
-                  {event.category}
-                </span>
-                {event.registration_fees > 0 && (
-                  <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-                    ₹{event.registration_fees} Fees
-                  </span>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
-              {/* {canRegister && (
-                <Link
-                  to={`/events/${id}/participate`}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
-                >
-                  Register Now
-                </Link>
-              )} */}
-              {canRegister && (
-  <Link
-  to={`/events/${id}/participate`}
-  className={`px-6 py-3 rounded-lg font-medium transition ${
-    isRegistered
-      ? 'bg-gray-400 text-white cursor-not-allowed'
-      : 'bg-green-600 text-white hover:bg-green-700'
-  }`}
-  onClick={e => {
+  const cat = getCategoryStyle(event.category);
+  const images = event.images || [];
+  const imageUrls = images.map(img => fileUrl(img.image_url));
+  const coverImage = imageUrls[0];
+  const fees = Number(event.registration_fees) || 0;
+  const responses = event.dynamicFeedbackResponses || [];
+
+  const facts = [
+    { label: 'Date', value: format(new Date(event.event_date), 'EEEE, d MMMM yyyy') },
+    { label: 'Time', value: formatTime(event.event_time) || event.event_time },
+    { label: 'Venue', value: event.location },
+    { label: 'Organizer', value: event.organized_by || event.organizer_name },
+    { label: 'Department', value: event.organizer_department },
+    { label: 'Seats', value: event.max_participants || 'Unlimited' },
+  ].filter(f => f.value);
+
+  const guardRegistered = e => {
     if (isRegistered) {
       e.preventDefault();
       toast.error('You are already registered for this event');
     }
-  }}
->
-  {isRegistered ? 'Already Registered' : 'Register Now'}
-</Link>
-)}
-              
-              {/* {canGiveFeedback && (
-                <Link
-                  to={`/events/${id}/feedback`}
-                  className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-medium"
-                >
-                  Give Feedback
-                </Link>
-              )} */}
-              {canGiveFeedback && (
-  <Link
-    to={`/events/${id}/feedback-form`}
-    className={`px-6 py-3 rounded-lg font-medium transition ${
-      hasGivenFeedback
-        ? 'bg-gray-400 text-white cursor-not-allowed'
-        : 'bg-yellow-600 text-white hover:bg-yellow-700'
-    }`}
-    onClick={e => {
-      if (hasGivenFeedback) {
-        e.preventDefault();
-        toast.error('You have already submitted feedback for this event');
-      }
-    }}
-  >
-    {hasGivenFeedback ? 'Feedback Submitted' : 'Give Feedback'}
-  </Link>
-)}
-              
-              {(user?.role === 'admin' || user?.role === 'faculty') && (
-                <button
-                  onClick={generateReport}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
-                >
-                  Generate Report
-                </button>
-              )}
-              
-              {canManage && (
-                <>
-                  <Link
-                    to={`/edit-event/${id}`}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-                  >
-                    Edit Event
-                  </Link>
-                  <button
-                    onClick={handleDelete}
-                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
-                  >
-                    Delete Event
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+  };
 
-          {/* Quick Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Date</p>
-              <p className="font-semibold">{format(new Date(event.event_date), 'MMMM dd, yyyy')}</p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Time</p>
-              <p className="font-semibold">{event.event_time}</p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Location</p>
-              <p className="font-semibold">{event.location}</p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500">Organizer</p>
-              <p className="font-semibold">{event.organized_by || event.organizer_name}</p>
-            </div>
-          </div>
-        </div>
+  const guardFeedback = e => {
+    if (hasGivenFeedback) {
+      e.preventDefault();
+      toast.error('You have already submitted feedback for this event');
+    }
+  };
 
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('details')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'details'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Event Details
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('gallery')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'gallery'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Gallery ({event.images?.length || 0})
-              </button>
-              
-              {user?.role === 'admin' && (
-                <button
-                  onClick={() => setActiveTab('participants')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'participants'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Participants ({participations.length})
-                </button>
-              )}
-              
-              <button
-                onClick={() => setActiveTab('feedback')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'feedback'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Feedback
-              </button>
-              
-              {canCreateFeedbackForm && (
-                <button
-                  onClick={() => setActiveTab('create-feedback')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'create-feedback'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {feedbackForm ? '✓ Feedback Form' : '➕ Create Feedback Form'}
-                </button>
-              )}
-            </nav>
-          </div>
-        </div>
+  return (
+    <div>
+      <Link
+        to="/events"
+        className="text-muted-foreground hover:text-foreground mb-8 inline-flex items-center gap-1.5 text-sm transition-colors"
+      >
+        <ArrowLeft className="size-4" strokeWidth={1.75} /> All events
+      </Link>
 
-        {/* Tab Content */}
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          {activeTab === 'details' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">Description</h3>
-                <div className="prose max-w-none">
-                  <p className="text-gray-700 whitespace-pre-line">{event.description}</p>
-                </div>
+      {/* Poster-style header */}
+      <FadeIn as="header" className="grid gap-8 border-b pb-10 lg:grid-cols-5 lg:items-end lg:gap-12">
+        <div className="lg:col-span-3">
+          <p className={cn('mb-4 inline-flex items-center gap-2 text-sm font-medium', cat.text)}>
+            <span className={cn('size-2 rounded-full', cat.dot)} />
+            {cat.label}
+            <span className="meta ml-1">{isPastEvent ? '· already happened' : '· upcoming'}</span>
+          </p>
+          <h1 className="text-[2.5rem] leading-[1.05] text-balance sm:text-5xl lg:text-[3.4rem]">{event.title}</h1>
+
+          <dl className="mt-8 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+            {facts.map(({ label, value }) => (
+              <div key={label} className="flex items-baseline gap-3 border-t pt-2.5">
+                <dt className="meta w-20 shrink-0">{label}</dt>
+                <dd className="min-w-0 text-[0.95rem]">{value}</dd>
               </div>
-              
-              {event.rules_eligibility && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-3">Rules & Eligibility</h3>
-                  <div className="prose max-w-none">
-                    <p className="text-gray-700 whitespace-pre-line">{event.rules_eligibility}</p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-3">Event Information</h3>
-                  <ul className="space-y-2">
-                    <li className="flex justify-between py-2 border-b">
-                      <span className="text-gray-600">Maximum Participants</span>
-                      <span className="font-medium">{event.max_participants || 'Unlimited'}</span>
-                    </li>
-                    <li className="flex justify-between py-2 border-b">
-                      <span className="text-gray-600">Registration Fees</span>
-                      <span className="font-medium">₹{event.registration_fees || 0}</span>
-                    </li>
-                    <li className="flex justify-between py-2 border-b">
-                      <span className="text-gray-600">Created By</span>
-                      <span className="font-medium">{event.organizer_name || 'N/A'}</span>
-                    </li>
-                  </ul>
-                </div>
-                
+            ))}
+          </dl>
+        </div>
+
+        <div className="lg:col-span-2">
+          {coverImage ? (
+            <button
+              type="button"
+              onClick={() => setLightboxIndex(0)}
+              className="focus-visible:ring-ring/50 block w-full overflow-hidden rounded-md border outline-none focus-visible:ring-2"
+              aria-label="View cover image"
+            >
+              <img src={coverImage} alt={event.title} className="aspect-[4/3] w-full object-cover" />
+            </button>
+          ) : (
+            <div className={cn('flex aspect-[4/3] w-full items-end rounded-md p-6 text-white', cat.poster)}>
+              <span className="font-serif text-6xl leading-none font-medium italic opacity-90">{cat.label}</span>
+            </div>
+          )}
+        </div>
+      </FadeIn>
+
+      <div className="mt-10 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] xl:gap-14">
+        {/* Main column */}
+        <FadeIn delay={0.08} className="min-w-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-8">
+            <div className="scrollbar-none -mx-1 overflow-x-auto px-1">
+              <TabsList>
+                <TabsTrigger value="details">About</TabsTrigger>
+                <TabsTrigger value="gallery">
+                  Gallery <span className="meta">{event.images?.length || 0}</span>
+                </TabsTrigger>
                 {user?.role === 'admin' && (
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Quick Stats</h3>
-                    <ul className="space-y-2">
-                      <li className="flex justify-between py-2 border-b">
-                        <span className="text-gray-600">Total Registrations</span>
-                        <span className="font-medium">{participations.length}</span>
-                      </li>
-                      <li className="flex justify-between py-2 border-b">
-                        <span className="text-gray-600">Total Feedback</span>
-                        <span className="font-medium">{feedback.length}</span>
-                      </li>
-                    </ul>
-                  </div>
+                  <TabsTrigger value="participants">
+                    Participants <span className="meta">{participations.length}</span>
+                  </TabsTrigger>
                 )}
-              </div>
+                <TabsTrigger value="feedback">Feedback</TabsTrigger>
+                {canCreateFeedbackForm && (
+                  <TabsTrigger value="create-feedback">
+                    {feedbackForm ? 'Feedback form' : 'Create feedback form'}
+                  </TabsTrigger>
+                )}
+              </TabsList>
             </div>
-          )}
-          
-          {activeTab === 'gallery' && (
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-6">Event Gallery</h3>
-              {event.images && event.images.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {event.images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={`http://localhost:5000/${image.image_path}`}
-                        alt={`${event.title} - Image ${index + 1}`}
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <button
-                          onClick={() => window.open(`http://localhost:5000/${image.image_path}`, '_blank')}
-                          className="px-4 py-2 bg-white text-gray-800 rounded-lg hover:bg-gray-100 transition"
-                        >
-                          View Full
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No images available for this event</p>
-                </div>
+
+            {/* About */}
+            <TabsContent value="details" className="space-y-10">
+              <p className="max-w-prose text-[1.05rem] leading-relaxed whitespace-pre-line">{event.description}</p>
+
+              {event.rules_eligibility && (
+                <section className="border-l-primary max-w-prose rounded-r-md border border-l-2 px-5 py-4">
+                  <h2 className="mb-2 text-lg">Rules & eligibility</h2>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{event.rules_eligibility}</p>
+                </section>
               )}
-            </div>
-          )}
-          
-          {activeTab === 'participants' && user?.role === 'admin' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Event Participants</h3>
-                <span className="text-gray-600">{participations.length} registrations</span>
-              </div>
-              
-              {participations.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          College
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Course/Year
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Registered On
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {participations.map((participation) => (
-                        <tr key={participation.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{participation.name}</div>
-                            <div className="text-sm text-gray-500">{participation.phone}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {participation.email}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {participation.college}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {participation.course_year}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(participation.registered_at).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No participants yet</p>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {activeTab === 'feedback' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Event Feedback</h3>
-                <div className="flex items-center">
-                  <span className="text-gray-600">
-                    {event.dynamicFeedbackResponses?.length || 0} total responses
-                  </span>
-                </div>
-              </div>
-              
-              {(!event.dynamicFeedbackResponses || event.dynamicFeedbackResponses.length === 0) ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No feedback yet</p>
-                  {isPastEvent && user?.role === 'student' && (
-                    <Link
-                      to={`/events/${id}/feedback-form`}
-                      className="mt-4 inline-block px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-                    >
-                      Be the first to give feedback
-                    </Link>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Dynamic Feedback Responses */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <h4 className="text-lg font-semibold text-gray-800">Feedback Responses</h4>
-                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                      {event.dynamicFeedbackResponses.length} responses
-                    </span>
+
+              <section className="max-w-prose">
+                <SectionTitle>The details</SectionTitle>
+                <dl className="divide-y border-y text-sm">
+                  <div className="flex justify-between gap-4 py-2.5">
+                    <dt className="text-muted-foreground">Maximum participants</dt>
+                    <dd className="tabular">{event.max_participants || 'Unlimited'}</dd>
                   </div>
-                  {event.dynamicFeedbackResponses.map((response) => (
-                    <div key={response.id} className="border border-green-200 rounded-lg p-6 bg-green-50">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <p className="font-semibold text-gray-800">{response.student_name}</p>
-                          <p className="text-sm text-gray-600">{response.student_email}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(response.submitted_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3 bg-white rounded-lg p-4">
-                        {response.answers && response.answers.map((answer) => (
-                          <div key={answer.id} className="border-l-4 border-blue-400 pl-4 py-2">
-                            <p className="font-medium text-gray-800">{answer.question_text}</p>
-                            <p className="text-gray-600 mt-1">
-                              {answer.question_type === 'rating' && (
-                                <span className="flex items-center">
-                                  <span className="text-yellow-400 mr-2">
-                                    {'★'.repeat(parseInt(answer.answer_text) || 0)}
-                                    {'☆'.repeat(5 - (parseInt(answer.answer_text) || 0))}
-                                  </span>
-                                  {answer.answer_text}/5
-                                </span>
-                              )}
-                              {answer.question_type !== 'rating' && (answer.answer_text || 'No answer provided')}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                  <div className="flex justify-between gap-4 py-2.5">
+                    <dt className="text-muted-foreground">Registration fee</dt>
+                    <dd className="tabular">₹{event.registration_fees || 0}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 py-2.5">
+                    <dt className="text-muted-foreground">Posted by</dt>
+                    <dd>{event.organizer_name || 'N/A'}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              {user?.role === 'admin' && (
+                <section>
+                  <SectionTitle>So far</SectionTitle>
+                  <StatRow className="md:max-w-md">
+                    <StatCard label="Registrations" value={participations.length} />
+                    <StatCard label="Feedback received" value={feedback.length} />
+                  </StatRow>
+                </section>
               )}
-            </div>
-          )}
-          
-          {activeTab === 'create-feedback' && canCreateFeedbackForm && (
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-6">
-                {feedbackForm ? 'Feedback Form Details' : 'Create Feedback Form'}
-              </h3>
-              
-              {feedbackForm ? (
-                <div className="space-y-6">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-green-800 font-medium">✓ Feedback form already created for this event</p>
-                    <p className="text-green-700 text-sm mt-1">
-                      {feedbackForm.questions?.length || 0} questions configured
+            </TabsContent>
+
+            {/* Gallery */}
+            <TabsContent value="gallery">
+              {images.length > 0 ? (
+                <section>
+                  <SectionTitle aside={<span className="meta">{images.length} {images.length === 1 ? 'photo' : 'photos'}</span>}>
+                    Photos
+                  </SectionTitle>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {images.map((image, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setLightboxIndex(index)}
+                        className="focus-visible:ring-ring/50 block aspect-[4/3] w-full overflow-hidden rounded-md border outline-none transition-opacity hover:opacity-85 focus-visible:ring-2"
+                        aria-label={`View image ${index + 1}`}
+                      >
+                        <img
+                          src={fileUrl(image.image_url)}
+                          alt={`${event.title} - Image ${index + 1}`}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <EmptyState title="No photos yet" description="Photos from the event will be added here once they are uploaded." />
+              )}
+            </TabsContent>
+
+            {/* Participants (admin) */}
+            {user?.role === 'admin' && (
+              <TabsContent value="participants">
+                <SectionTitle aside={<span className="meta">{participations.length} registered</span>}>
+                  Who's coming
+                </SectionTitle>
+                {participations.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>College</TableHead>
+                        <TableHead>Course / year</TableHead>
+                        <TableHead>Registered</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {participations.map((participation) => (
+                        <TableRow key={participation.id}>
+                          <TableCell>
+                            <div className="font-medium">{participation.name}</div>
+                            <div className="meta">{participation.phone}</div>
+                          </TableCell>
+                          <TableCell>{participation.email}</TableCell>
+                          <TableCell>{participation.college}</TableCell>
+                          <TableCell>{participation.course_year}</TableCell>
+                          <TableCell className="meta">{new Date(participation.registered_at).toLocaleDateString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <EmptyState title="No one has registered yet" description="Registrations will be listed here as they come in." className="py-10" />
+                )}
+              </TabsContent>
+            )}
+
+            {/* Feedback */}
+            <TabsContent value="feedback">
+              {responses.length === 0 ? (
+                <EmptyState
+                  title="No feedback yet"
+                  description="Responses show up here once students fill in the feedback form."
+                  action={
+                    isPastEvent && user?.role === 'student' && (
+                      <Button asChild variant="accent">
+                        <Link to={`/events/${id}/feedback-form`}>Give feedback</Link>
+                      </Button>
+                    )
+                  }
+                />
+              ) : (
+                <section>
+                  <SectionTitle aside={<span className="meta">{responses.length} {responses.length === 1 ? 'response' : 'responses'}</span>}>
+                    What people said
+                  </SectionTitle>
+                  <div className="divide-y border-y">
+                    {responses.map((response) => (
+                      <article key={response.id} className="py-6">
+                        <div className="mb-4 flex items-baseline justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{response.student_name}</p>
+                            <p className="meta truncate">{response.student_email}</p>
+                          </div>
+                          <span className="meta shrink-0">{new Date(response.submitted_at).toLocaleDateString()}</span>
+                        </div>
+
+                        <dl className="space-y-3">
+                          {response.answers && response.answers.map((answer) => (
+                            <div key={answer.id}>
+                              <dt className="text-muted-foreground text-sm">{answer.question_text}</dt>
+                              <dd className="mt-0.5">
+                                {answer.question_type === 'rating' && <RatingStars value={answer.answer_text} />}
+                                {answer.question_type !== 'rating' && (
+                                  answer.answer_text || <span className="text-muted-foreground italic">No answer</span>
+                                )}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </TabsContent>
+
+            {/* Create / view feedback form */}
+            {canCreateFeedbackForm && (
+              <TabsContent value="create-feedback" className="space-y-8">
+                {feedbackForm ? (
+                  <section>
+                    <p className="text-success mb-4 inline-flex items-center gap-1.5 text-sm font-medium">
+                      <Check className="size-4" /> The feedback form for this event is live
+                      <span className="meta ml-1">· {feedbackForm.questions?.length || 0} questions</span>
+                    </p>
+                    <h2 className="text-2xl">{feedbackForm.title}</h2>
+                    {feedbackForm.description && (
+                      <p className="text-muted-foreground mt-1 max-w-prose">{feedbackForm.description}</p>
+                    )}
+                    <ol className="mt-6 divide-y border-y">
+                      {feedbackForm.questions?.map((q, index) => (
+                        <li key={q.id} className="flex gap-4 py-3.5">
+                          <span className="meta w-6 shrink-0 pt-0.5">Q{index + 1}</span>
+                          <div className="min-w-0">
+                            <p>
+                              {q.question_text}
+                              {q.is_required && <span className="text-primary ml-1" aria-label="required">*</span>}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <span className="meta mr-1">{q.question_type?.replace('_', ' ')}</span>
+                              {q.options && q.options.map((opt, i) => (
+                                <Badge key={i} variant="outline" className="font-normal">{opt}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                ) : (
+                  <div className="max-w-prose">
+                    <h2 className="text-xl">No feedback form yet</h2>
+                    <p className="text-muted-foreground mt-1">
+                      Put together a few questions below. Students will be able to submit feedback immediately after registering.
                     </p>
                   </div>
-                  
-                  <div className="bg-white border border-gray-200 rounded-lg p-6">
-                    <h4 className="font-semibold text-lg mb-4">{feedbackForm.title}</h4>
-                    {feedbackForm.description && (
-                      <p className="text-gray-600 mb-4">{feedbackForm.description}</p>
-                    )}
-                    
-                    <div className="space-y-4">
-                      <h5 className="font-medium text-gray-800">Questions:</h5>
-                      {feedbackForm.questions?.map((q, index) => (
-                        <div key={q.id} className="border-l-4 border-blue-400 pl-4 py-2">
-                          <p className="font-medium">
-                            {index + 1}. {q.question_text}
-                            {q.is_required && <span className="text-red-500 ml-1">*</span>}
-                          </p>
-                          <p className="text-sm text-gray-500 capitalize">Type: {q.question_type}</p>
-                          {q.options && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              Options: {q.options.join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    {/* <button
-                      onClick={() => setShowFeedbackCreator(true)}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                      Create New Form (Replace)
-                    </button> */}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                  <h4 className="font-medium text-blue-900 mb-2">No Feedback Form Yet</h4>
-                  <p className="text-blue-800 mb-4">
-                    Create a custom feedback form for this event. Students will be able to submit feedback immediately after registering.
-                  </p>
-                </div>
+                )}
+
+                {(!feedbackForm || showFeedbackCreator) && (
+                  <FeedbackFormCreator
+                    eventId={id}
+                    onSaveComplete={() => {
+                      setShowFeedbackCreator(false);
+                      fetchEventData(); // Refresh to show the new form
+                    }}
+                  />
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+        </FadeIn>
+
+        {/* Side column: ticket stub */}
+        <FadeIn delay={0.14} as="aside" className="space-y-6 lg:sticky lg:top-20">
+          <div className="bg-card rounded-lg border">
+            <div className="flex items-end justify-between gap-3 p-5">
+              <div>
+                <p className="meta mb-1">Entry</p>
+                {fees > 0 ? (
+                  <p className="font-serif text-4xl leading-none font-medium tabular">₹{fees}</p>
+                ) : (
+                  <p className="text-success font-serif text-4xl leading-none font-medium italic">Free</p>
+                )}
+              </div>
+              <Badge variant={isPastEvent ? 'secondary' : 'success'}>
+                {isPastEvent ? 'Finished' : 'Open'}
+              </Badge>
+            </div>
+
+            <div className="relative">
+              <span className="bg-background absolute top-1/2 -left-[7px] size-3.5 -translate-y-1/2 rounded-full border" />
+              <span className="bg-background absolute top-1/2 -right-[7px] size-3.5 -translate-y-1/2 rounded-full border" />
+              <div className="perforated mx-3" />
+            </div>
+
+            <div className="space-y-3 p-5">
+              <p className="meta">
+                {format(new Date(event.event_date), 'EEE d MMM yyyy')}
+                {event.event_time ? ` · ${formatTime(event.event_time)}` : ''}
+              </p>
+
+              {/* Student actions */}
+              {canRegister && (
+                isRegistered ? (
+                  <Link
+                    to={`/events/${id}/participate`}
+                    onClick={guardRegistered}
+                    className="text-success flex cursor-not-allowed items-center gap-1.5 py-1 text-sm font-medium"
+                  >
+                    <Check className="size-4" /> You're registered for this one
+                  </Link>
+                ) : (
+                  <Button asChild variant="accent" size="lg" className="w-full">
+                    <Link to={`/events/${id}/participate`} onClick={guardRegistered}>
+                      Register
+                    </Link>
+                  </Button>
+                )
               )}
-              
-              {(!feedbackForm || showFeedbackCreator) && (
-                <FeedbackFormCreator
-                  eventId={id}
-                  onSaveComplete={() => {
-                    setShowFeedbackCreator(false);
-                    fetchEventData(); // Refresh to show the new form
-                  }}
-                />
+
+              {canGiveFeedback && (
+                hasGivenFeedback ? (
+                  <Link
+                    to={`/events/${id}/feedback-form`}
+                    onClick={guardFeedback}
+                    className="text-success flex cursor-not-allowed items-center gap-1.5 py-1 text-sm font-medium"
+                  >
+                    <Check className="size-4" /> Thanks, your feedback is in
+                  </Link>
+                ) : (
+                  <Button asChild variant="accent" size="lg" className="w-full">
+                    <Link to={`/events/${id}/feedback-form`} onClick={guardFeedback}>
+                      Give feedback
+                    </Link>
+                  </Button>
+                )
+              )}
+
+
+              {/* Admin / faculty actions */}
+              {(user?.role === 'admin' || user?.role === 'faculty') && (
+                <div className="space-y-2 pt-1">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={generateReport}
+                    loading={reportLoading}
+                  >
+                    {!reportLoading && <FileText strokeWidth={1.75} />}
+                    {reportLoading ? 'Generating…' : 'Generate report'}
+                  </Button>
+                  {user?.role === 'admin' && (
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link to={`/admin/participants/${id}`}>
+                        <Users strokeWidth={1.75} /> Manage participants
+                      </Link>
+                    </Button>
+                  )}
+                  {canManage && (
+                    <div className="flex gap-2">
+                      <Button asChild variant="ghost" size="sm" className="flex-1">
+                        <Link to={`/edit-event/${id}`}>
+                          <Pencil strokeWidth={1.75} /> Edit
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive flex-1"
+                        onClick={() => setConfirmDeleteOpen(true)}
+                      >
+                        <Trash2 strokeWidth={1.75} /> Delete
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
+          </div>
+
+          {/* Payment QR */}
+          {event.payment_qr_url && fees > 0 && (
+            <figure className="rounded-lg border p-4">
+              <a
+                href={fileUrl(event.payment_qr_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-md bg-white p-3"
+              >
+                <img
+                  src={fileUrl(event.payment_qr_url)}
+                  alt="Payment QR code"
+                  className="mx-auto aspect-square w-full max-w-52 object-contain"
+                />
+              </a>
+              <figcaption className="text-muted-foreground mt-3 text-sm">
+                Scan to pay the ₹{fees} registration fee. <span className="meta">Tap to open full size.</span>
+              </figcaption>
+            </figure>
           )}
-        </div>
+        </FadeIn>
       </div>
+
+      <ImageLightbox
+        images={imageUrls}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Delete this event?"
+        description="Are you sure you want to delete this event? This cannot be undone."
+        confirmLabel="Delete event"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

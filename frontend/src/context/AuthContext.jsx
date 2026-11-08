@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const AuthContext = createContext({});
 
@@ -147,7 +147,7 @@ export const AuthProvider = ({ children }) => {
 };
 // import React, { createContext, useState, useContext, useEffect } from 'react';
 // import axios from 'axios';
-// import toast from 'react-hot-toast';
+// import { toast } from 'sonner';
 
 // const AuthContext = createContext({});
 

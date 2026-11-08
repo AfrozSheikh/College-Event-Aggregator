@@ -2,13 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
+import { Check } from 'lucide-react';
+import PageHeader from '@/components/common/PageHeader';
+import EmptyState from '@/components/common/EmptyState';
+import { ListSkeleton } from '@/components/common/Loaders';
+import { FadeIn } from '@/components/common/motion';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn, fileUrl, getCategoryStyle } from '@/lib/utils';
+
+const isUpcomingDate = (date) => new Date(date) >= new Date();
+
+const textLink = 'text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline';
 
 const MyRegistrations = () => {
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState([]);
   const [feedbackStatus, setFeedbackStatus] = useState({});
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     if (user) {
@@ -22,24 +36,24 @@ const MyRegistrations = () => {
       const response = await axios.get(`http://localhost:5000/api/participations/student/${user.id}`);
       const regs = response.data;
       setRegistrations(regs);
-      
+
       // Check feedback status for each registration
       const statusPromises = regs.map(async (reg) => {
         try {
           // Check if feedback form exists
-          const formResponse = await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
-          
+          await axios.get(`http://localhost:5000/api/feedback-forms/event/${reg.event_id}`);
+
           // Check if student has submitted
           const statusResponse = await axios.get(
             `http://localhost:5000/api/feedback-forms/check/${reg.event_id}/${user.id}`
           );
-          
+
           return {
             eventId: reg.event_id,
             hasForm: true,
             hasSubmitted: statusResponse.data.hasSubmitted
           };
-        } catch (error) {
+        } catch {
           // No feedback form exists for this event
           return {
             eventId: reg.event_id,
@@ -48,14 +62,14 @@ const MyRegistrations = () => {
           };
         }
       });
-      
+
       const statuses = await Promise.all(statusPromises);
       const statusMap = {};
       statuses.forEach(status => {
         statusMap[status.eventId] = status;
       });
       setFeedbackStatus(statusMap);
-      
+
     } catch (error) {
       console.error('Failed to load registrations:', error);
       toast.error('Failed to load registrations');
@@ -64,145 +78,182 @@ const MyRegistrations = () => {
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  const header = (
+    <PageHeader
+      eyebrow="Your activity"
+      title="My registrations"
+      description="Every event you've signed up for, with your payment and documents in one place."
+      actions={
+        <Button asChild variant="accent">
+          <Link to="/events">Browse events</Link>
+        </Button>
+      }
+    />
+  );
+
+  if (loading) {
+    return (
+      <div>
+        {header}
+        <ListSkeleton rows={4} />
+      </div>
+    );
+  }
+
+  const upcomingCount = registrations.filter(reg => isUpcomingDate(reg.event_date)).length;
+  const pastCount = registrations.length - upcomingCount;
+  const filtered = registrations.filter(reg => {
+    if (filter === 'upcoming') return isUpcomingDate(reg.event_date);
+    if (filter === 'past') return !isUpcomingDate(reg.event_date);
+    return true;
+  });
+
+  const count = (n) => <span className="meta tabular">{n}</span>;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">My Event Registrations</h1>
-          <p className="text-gray-600">Track all your event participations</p>
-        </div>
+    <div>
+      {header}
 
-        {registrations.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No registrations yet</h3>
-            <p className="text-gray-500 mb-6">You haven't registered for any events yet</p>
-            <Link
-              to="/events"
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              Browse Events
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {registrations.map(reg => (
-              <div key={reg.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
-                <div className="md:flex">
-                  <div className="md:w-1/4 h-48 md:h-auto bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-gray-700 mb-1">
-                        {new Date(reg.event_date).toLocaleDateString('en-US', { day: 'numeric' })}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {new Date(reg.event_date).toLocaleDateString('en-US', { month: 'short' })}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="md:w-3/4 p-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">{reg.event_title}</h3>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full capitalize">
-                            {reg.category}
-                          </span>
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
-                            {reg.location}
-                          </span>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            new Date(reg.event_date) >= new Date()
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {new Date(reg.event_date) >= new Date() ? 'Upcoming' : 'Completed'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-2 md:mt-0">
-                        <span className="text-sm text-gray-500">
-                          Registered: {new Date(reg.registered_at).toLocaleDateString()}
+      {registrations.length === 0 ? (
+        <EmptyState
+          title="No registrations yet"
+          description="When you register for an event, it'll be listed here with your receipt and documents."
+          action={
+            <Button asChild variant="accent">
+              <Link to="/events">Browse events</Link>
+            </Button>
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          <Tabs value={filter} onValueChange={setFilter}>
+            <TabsList className="w-full sm:w-fit">
+              <TabsTrigger value="all">All {count(registrations.length)}</TabsTrigger>
+              <TabsTrigger value="upcoming">Upcoming {count(upcomingCount)}</TabsTrigger>
+              <TabsTrigger value="past">Past {count(pastCount)}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              title={filter === 'upcoming' ? 'No upcoming registrations' : 'No past registrations'}
+              description={
+                filter === 'upcoming'
+                  ? "You haven't signed up for anything coming up. Have a look at what's on."
+                  : 'Events you attended will show up here once they are over.'
+              }
+              action={
+                <Button asChild variant="outline">
+                  <Link to="/events">Browse events</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <FadeIn key={filter}>
+              <ul className="divide-y border-y">
+                {filtered.map(reg => {
+                  const upcoming = isUpcomingDate(reg.event_date);
+                  const cat = getCategoryStyle(reg.category);
+                  const status = feedbackStatus[reg.event_id];
+                  const eventDate = new Date(reg.event_date);
+
+                  return (
+                    <li key={reg.id} className="flex gap-5 py-6 sm:gap-7">
+                      {/* Date stub */}
+                      <div className="flex w-14 shrink-0 flex-col items-center border-r border-dashed pr-5 text-center sm:w-16 sm:pr-7">
+                        <span className="meta uppercase">
+                          {eventDate.toLocaleDateString('en-IN', { month: 'short' })}
+                        </span>
+                        <span className="font-serif text-[2.2rem] leading-none font-medium tabular">
+                          {eventDate.getDate()}
+                        </span>
+                        <span className="meta mt-1">
+                          {eventDate.toLocaleDateString('en-IN', { weekday: 'short' })}
                         </span>
                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Event Date</p>
-                        <p className="font-medium">
-                          {new Date(reg.event_date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Registration Details</p>
-                        <p className="font-medium">{reg.team_members ? 'Team: ' + reg.team_members : 'Individual'}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-3">
-                      <Link
-                        to={`/events/${reg.event_id}`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                      >
-                        View Event
-                      </Link>
-                      
-                      {/* Dynamic Feedback Form Button */}
-                      {feedbackStatus[reg.event_id]?.hasForm && !feedbackStatus[reg.event_id]?.hasSubmitted && (
-                        <Link
-                          to={`/events/${reg.event_id}/feedback-form`}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                        >
-                          📝 Give Feedback
-                        </Link>
-                      )}
-                      
-                      {feedbackStatus[reg.event_id]?.hasForm && feedbackStatus[reg.event_id]?.hasSubmitted && (
-                        <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium">
-                          ✓ Feedback Submitted
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                          <div className="min-w-0">
+                            <Link to={`/events/${reg.event_id}`} className="hover:text-primary transition-colors">
+                              <h3 className="text-[1.3rem] leading-snug">{reg.event_title}</h3>
+                            </Link>
+                            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                              <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', cat.text)}>
+                                <span className={cn('size-1.5 rounded-full', cat.dot)} />
+                                {cat.label}
+                              </span>
+                              <span className="text-muted-foreground min-w-0 truncate">{reg.location}</span>
+                            </p>
+                          </div>
+                          <Badge variant={upcoming ? 'success' : 'secondary'} className="shrink-0">
+                            {upcoming ? 'Upcoming' : 'Completed'}
+                          </Badge>
                         </div>
-                      )}
-                      
-                      {/* Legacy Feedback (for events without dynamic form) */}
-                      {!feedbackStatus[reg.event_id]?.hasForm && new Date(reg.event_date) < new Date() && (
-                        <Link
-                          to={`/events/${reg.event_id}/feedback`}
-                          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-                        >
-                          Give Feedback (Legacy)
-                        </Link>
-                      )}
-                      
-                      {reg.document_path && (
-                        <a
-                          href={`http://localhost:5000/${reg.document_path}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                        >
-                          View Uploaded Document
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+
+                        <p className="meta mt-3 break-words">
+                          Registered{' '}
+                          {new Date(reg.registered_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {' · '}
+                          {reg.team_members ? `Team: ${reg.team_members}` : 'Individual'}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link to={`/events/${reg.event_id}`}>View event</Link>
+                          </Button>
+
+                          {/* Dynamic Feedback Form Button */}
+                          {status?.hasForm && !status?.hasSubmitted && (
+                            <Button asChild size="sm" variant="accent">
+                              <Link to={`/events/${reg.event_id}/feedback-form`}>Give feedback</Link>
+                            </Button>
+                          )}
+
+                          {status?.hasForm && status?.hasSubmitted && (
+                            <span className="text-success inline-flex items-center gap-1.5 text-sm font-medium">
+                              <Check className="size-4" strokeWidth={2} /> Feedback sent
+                            </span>
+                          )}
+
+                          {/* Legacy Feedback (for events without dynamic form) */}
+                          {!status?.hasForm && new Date(reg.event_date) < new Date() && (
+                            <Button asChild size="sm" variant="outline">
+                              <Link to={`/events/${reg.event_id}/feedback`}>Give feedback</Link>
+                            </Button>
+                          )}
+
+                          {reg.payment_screenshot_url && (
+                            <a
+                              href={fileUrl(reg.payment_screenshot_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={textLink}
+                            >
+                              Payment screenshot
+                            </a>
+                          )}
+
+                          {reg.document_url && (
+                            <a
+                              href={fileUrl(reg.document_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={textLink}
+                            >
+                              Uploaded document
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </FadeIn>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,64 +1,136 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Eye, EyeOff } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 // Error message component for form fields
-export const ErrorMessage = ({ error, touched }) => {
-  if (!error || !touched) return null;
-  
+export const ErrorMessage = ({ error, touched, id }) => (
+  <AnimatePresence initial={false}>
+    {error && touched && (
+      <motion.p
+        id={id}
+        role="alert"
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.15 }}
+        className="text-destructive overflow-hidden pt-1 text-xs"
+      >
+        {error}
+      </motion.p>
+    )}
+  </AnimatePresence>
+);
+
+// Helper function to get input class names based on error state
+// eslint-disable-next-line react-refresh/only-export-components
+export const getInputClassName = (baseClassName, error, touched) => {
+  const errorClass =
+    error && touched
+      ? 'border-destructive focus-visible:ring-destructive/20'
+      : 'border-input focus-visible:border-foreground/60 focus-visible:ring-ring/15';
+  return cn(baseClassName, errorClass);
+};
+
+/**
+ * Input with an optional small leading lucide icon and an optional trailing element.
+ * All other props are forwarded to the shadcn <Input>.
+ */
+export const IconInput = ({ icon: Icon, trailing, className, invalid, ...props }) => (
+  <div className="relative">
+    {Icon && (
+      <Icon
+        strokeWidth={1.75}
+        className={cn(
+          'pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2',
+          invalid ? 'text-destructive/80' : 'text-muted-foreground/70'
+        )}
+      />
+    )}
+    <Input
+      aria-invalid={invalid || undefined}
+      className={cn('h-10', Icon && 'pl-9', trailing && 'pr-11', className)}
+      {...props}
+    />
+    {trailing && <div className="absolute top-1/2 right-1 -translate-y-1/2">{trailing}</div>}
+  </div>
+);
+
+/** Password input with an optional leading icon and a show/hide toggle. */
+export const PasswordInput = ({ icon, ...props }) => {
+  const [visible, setVisible] = useState(false);
   return (
-    <p className="mt-1 text-sm text-red-600 flex items-center">
-      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-      </svg>
-      {error}
-    </p>
+    <IconInput
+      icon={icon}
+      type={visible ? 'text' : 'password'}
+      trailing={
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-pressed={visible}
+        >
+          {visible ? <EyeOff className="size-4" strokeWidth={1.75} /> : <Eye className="size-4" strokeWidth={1.75} />}
+        </button>
+      }
+      {...props}
+    />
   );
 };
 
-// Helper function to get input class names based on error state
-export const getInputClassName = (baseClassName, error, touched) => {
-  const errorClass = error && touched ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500';
-  return `${baseClassName} ${errorClass}`;
-};
+// brick while weak, ink while getting there, green when every rule is met
+const STRENGTH_LEVELS = [
+  { label: 'Too weak', text: 'text-primary', bar: 'bg-primary' },
+  { label: 'Weak', text: 'text-primary', bar: 'bg-primary' },
+  { label: 'Weak', text: 'text-primary', bar: 'bg-primary' },
+  { label: 'Fair', text: 'text-foreground', bar: 'bg-foreground/70' },
+  { label: 'Nearly there', text: 'text-foreground', bar: 'bg-foreground' },
+  { label: 'Strong', text: 'text-success', bar: 'bg-success' },
+];
 
 // Password strength indicator component
 export const PasswordStrength = ({ password }) => {
   if (!password) return null;
-  
-  const hasLength = password.length >= 8;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-  
-  const strength = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
-  
-  const getStrengthColor = () => {
-    if (strength <= 2) return 'bg-red-500';
-    if (strength === 3 || strength === 4) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-  
-  const getStrengthText = () => {
-    if (strength <= 2) return 'Weak';
-    if (strength === 3 || strength === 4) return 'Medium';
-    return 'Strong';
-  };
-  
+
+  const checks = [
+    { label: '8+ characters', ok: password.length >= 8 },
+    { label: 'an uppercase letter', ok: /[A-Z]/.test(password) },
+    { label: 'a lowercase letter', ok: /[a-z]/.test(password) },
+    { label: 'a number', ok: /[0-9]/.test(password) },
+    // eslint-disable-next-line no-useless-escape
+    { label: 'a special character', ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
+  ];
+  const strength = checks.filter((c) => c.ok).length;
+  const level = STRENGTH_LEVELS[strength];
+
   return (
-    <div className="mt-2">
-      <div className="flex items-center space-x-2 mb-1">
-        <div className="flex-1 bg-gray-200 rounded-full h-2">
-          <div className={`h-2 rounded-full transition-all ${getStrengthColor()}`} style={{ width: `${(strength / 5) * 100}%` }}></div>
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.15 }}
+      className="overflow-hidden pt-1"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 gap-1" aria-hidden="true">
+          {checks.map((_, i) => (
+            <span
+              key={i}
+              className={cn('h-[3px] flex-1 transition-colors duration-200', i < strength ? level.bar : 'bg-border')}
+            />
+          ))}
         </div>
-        <span className="text-xs font-medium text-gray-600">{getStrengthText()}</span>
+        <span className={cn('w-20 text-right font-mono text-[11.5px] tracking-tight', level.text)}>{level.label}</span>
       </div>
-      <div className="grid grid-cols-2 gap-1 text-xs">
-        <span className={hasLength ? 'text-green-600' : 'text-gray-400'}>✓ 8+ characters</span>
-        <span className={hasUpper ? 'text-green-600' : 'text-gray-400'}>✓ Uppercase</span>
-        <span className={hasLower ? 'text-green-600' : 'text-gray-400'}>✓ Lowercase</span>
-        <span className={hasNumber ? 'text-green-600' : 'text-gray-400'}>✓ Number</span>
-        <span className={hasSpecial ? 'text-green-600' : 'text-gray-400'} style={{ gridColumn: 'span 2' }}>✓ Special character</span>
-      </div>
-    </div>
+      <ul className="text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {checks.map((c) => (
+          <li key={c.label} className={cn('transition-colors', c.ok && 'text-foreground line-through decoration-foreground/30')}>
+            {c.label}
+          </li>
+        ))}
+      </ul>
+    </motion.div>
   );
 };

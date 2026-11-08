@@ -4,23 +4,9 @@ const path = require('path');
 const notificationController = require('./notificationController');
 const emailService = require('../services/emailService');
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (file.fieldname === 'paymentQr') {
-            cb(null, 'uploads/payment-qr/');
-        } else {
-            cb(null, 'uploads/event-images/');
-        }
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
+// Configure multer for image uploads - files are kept in memory and saved to the DB
 const upload = multer({ 
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: function (req, file, cb) {
         const filetypes = /jpeg|jpg|png|gif/;
@@ -37,21 +23,46 @@ const upload = multer({
     { name: 'paymentQr', maxCount: 1 }
 ]);
 
+// Image metadata only - never select file_data here, it is served by /api/files
+const GALLERY_COLUMNS = `id, event_id, file_name, mime_type, uploaded_at,
+    CONCAT('/api/files/gallery/', id) AS image_url`;
+
+// Event columns plus the payment QR URL (if a QR has been uploaded)
+const EVENT_SELECT = `
+    SELECT e.*, u.name as organizer_name,
+        IF(q.event_id IS NULL, NULL, CONCAT('/api/files/event-qr/', e.id)) AS payment_qr_url
+    FROM events e 
+    LEFT JOIN users u ON e.created_by = u.id 
+    LEFT JOIN event_payment_qr q ON q.event_id = e.id
+`;
+
+const saveGalleryImages = async (eventId, files) => {
+    for (const file of files) {
+        await pool.query(
+            'INSERT INTO event_gallery (event_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)',
+            [eventId, file.originalname, file.mimetype, file.buffer]
+        );
+    }
+};
+
+const savePaymentQr = async (eventId, file) => {
+    await pool.query(
+        `INSERT INTO event_payment_qr (event_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), mime_type = VALUES(mime_type), file_data = VALUES(file_data)`,
+        [eventId, file.originalname, file.mimetype, file.buffer]
+    );
+};
+
 const eventController = {
     // Get all events
     getAllEvents: async (req, res) => {
         try {
-            const [events] = await pool.query(`
-                SELECT e.*, u.name as organizer_name 
-                FROM events e 
-                LEFT JOIN users u ON e.created_by = u.id 
-                ORDER BY e.event_date DESC
-            `);
+            const [events] = await pool.query(`${EVENT_SELECT} ORDER BY e.event_date DESC`);
             
             // Get images for each event
             for (let event of events) {
                 const [images] = await pool.query(
-                    'SELECT * FROM event_gallery WHERE event_id = ?',
+                    `SELECT ${GALLERY_COLUMNS} FROM event_gallery WHERE event_id = ?`,
                     [event.id]
                 );
                 event.images = images;
@@ -69,19 +80,14 @@ const eventController = {
         try {
             const { id } = req.params;
             
-            const [events] = await pool.query(`
-                SELECT e.*, u.name as organizer_name 
-                FROM events e 
-                LEFT JOIN users u ON e.created_by = u.id 
-                WHERE e.id = ?
-            `, [id]);
+            const [events] = await pool.query(`${EVENT_SELECT} WHERE e.id = ?`, [id]);
             
             if (events.length === 0) {
                 return res.status(404).json({ error: 'Event not found' });
             }
             
             const [images] = await pool.query(
-                'SELECT * FROM event_gallery WHERE event_id = ?',
+                `SELECT ${GALLERY_COLUMNS} FROM event_gallery WHERE event_id = ?`,
                 [id]
             );
             
@@ -124,8 +130,8 @@ const eventController = {
                 const [result] = await pool.query(
                     `INSERT INTO events 
                     (title, description, category, location, event_date, event_time, 
-                     organized_by, organizer_department, rules_eligibility, max_participants, registration_fees, payment_qr_code, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                     organized_by, organizer_department, rules_eligibility, max_participants, registration_fees, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         title,
                         description,
@@ -138,7 +144,6 @@ const eventController = {
                         rulesEligibility,
                         maxParticipants || null,
                         registrationFees || 0,
-                        req.files['paymentQr'] ? req.files['paymentQr'][0].path : null,
                         createdBy
                     ]
                 );
@@ -146,14 +151,12 @@ const eventController = {
                 
                 const eventId = result.insertId;
                 
-                // Insert event images into gallery
+                // Save payment QR code and event images in the database
+                if (req.files && req.files['paymentQr']) {
+                    await savePaymentQr(eventId, req.files['paymentQr'][0]);
+                }
                 if (req.files && req.files['images']) {
-                    for (const file of req.files['images']) {
-                        await pool.query(
-                            'INSERT INTO event_gallery (event_id, image_path) VALUES (?, ?)',
-                            [eventId, file.path]
-                        );
-                    }
+                    await saveGalleryImages(eventId, req.files['images']);
                 }
                 
                 // Get event details for notifications
@@ -199,17 +202,6 @@ const eventController = {
                 } catch (notifError) {
                     console.error('Failed to send notifications:', notifError);
                     // Don't fail the request if notifications fail
-                }
-                
-                // Handle image uploads
-                if (req.files && req.files.length > 0) {
-                    const imageInserts = req.files.map(file => {
-                        return pool.query(
-                            'INSERT INTO event_gallery (event_id, image_path) VALUES (?, ?)',
-                            [eventId, file.path]
-                        );
-                    });
-                    await Promise.all(imageInserts);
                 }
                 
                 res.json({ 
@@ -273,7 +265,7 @@ const eventController = {
 
                 // Handle payment QR code update
                 if (req.files && req.files['paymentQr'] && req.files['paymentQr'].length > 0) {
-                    mappedData.payment_qr_code = req.files['paymentQr'][0].path;
+                    await savePaymentQr(id, req.files['paymentQr'][0]);
                 }
 
                 // Update event fields
@@ -302,12 +294,7 @@ const eventController = {
 
                 // Handle new image uploads
                 if (req.files && req.files['images'] && req.files['images'].length > 0) {
-                    for (const file of req.files['images']) {
-                        await pool.query(
-                            'INSERT INTO event_gallery (event_id, image_path) VALUES (?, ?)',
-                            [id, file.path]
-                        );
-                    }
+                    await saveGalleryImages(id, req.files['images']);
                 }
 
                 res.json({ message: 'Event updated successfully' });
@@ -349,11 +336,7 @@ const eventController = {
             const { type } = req.params; // 'past' or 'future'
             const today = new Date().toISOString().split('T')[0];
             
-            let query = `
-                SELECT e.*, u.name as organizer_name 
-                FROM events e 
-                LEFT JOIN users u ON e.created_by = u.id 
-            `;
+            let query = EVENT_SELECT;
             
             if (type === 'past') {
                 query += ` WHERE e.event_date < ? ORDER BY e.event_date DESC`;
@@ -368,7 +351,7 @@ const eventController = {
             // Get images for each event
             for (let event of events) {
                 const [images] = await pool.query(
-                    'SELECT * FROM event_gallery WHERE event_id = ?',
+                    `SELECT ${GALLERY_COLUMNS} FROM event_gallery WHERE event_id = ?`,
                     [event.id]
                 );
                 event.images = images;

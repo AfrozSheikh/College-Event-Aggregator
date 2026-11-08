@@ -1,13 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
+import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, AvatarFallback } from '@/components/ui/misc';
+import PageHeader from '@/components/common/PageHeader';
+import EmptyState from '@/components/common/EmptyState';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { ListSkeleton } from '@/components/common/Loaders';
+import { FadeIn } from '@/components/common/motion';
+import { getInitials } from '@/lib/utils';
+
+const StatusBadge = ({ status }) =>
+  status === 'approved' ? (
+    <Badge variant="success">Approved</Badge>
+  ) : (
+    <Badge variant="warning">Pending approval</Badge>
+  );
+
+// One quiet line of role-specific detail
+const userDetails = (user) => {
+  if (user.role === 'faculty') {
+    return [user.department, user.faculty_id && `ID ${user.faculty_id}`].filter(Boolean).join(' · ');
+  }
+  if (user.role === 'student') {
+    return [user.college_name, [user.course, user.year].filter(Boolean).join(' – ')].filter(Boolean).join(' · ');
+  }
+  return '';
+};
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [confirmTarget, setConfirmTarget] = useState(null); // { id, name, mode: 'reject' | 'delete' }
 
   useEffect(() => {
     fetchUsers();
@@ -15,14 +49,14 @@ const UserManagement = () => {
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchTerm, selectedRole]);
+  }, [users, searchTerm, selectedRole, selectedStatus]);
 
   const fetchUsers = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/users/all');
       setUsers(response.data);
       setFilteredUsers(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
@@ -34,6 +68,12 @@ const UserManagement = () => {
 
     if (selectedRole !== 'all') {
       filtered = filtered.filter(user => user.role === selectedRole);
+    }
+
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(user =>
+        selectedStatus === 'approved' ? user.status === 'approved' : user.status !== 'approved'
+      );
     }
 
     if (searchTerm) {
@@ -53,195 +93,239 @@ const UserManagement = () => {
       await axios.put(`http://localhost:5000/api/users/${userId}/approve`);
       toast.success('User approved successfully');
       fetchUsers();
-    } catch (error) {
+    } catch {
       toast.error('Failed to approve user');
     }
   };
 
+  // Called after confirmation in ConfirmDialog (replaces window.confirm)
   const deleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-
     try {
       await axios.delete(`http://localhost:5000/api/users/${userId}`);
       toast.success('User deleted successfully');
       fetchUsers();
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete user');
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading users...</div>;
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedRole('all');
+    setSelectedStatus('all');
+  };
+
+  const pendingCount = users.filter(u => u.role === 'faculty' && u.status === 'pending').length;
+  const activeStudents = users.filter(u => u.role === 'student' && u.status === 'approved').length;
+  const studentCount = users.filter(u => u.role === 'student').length;
+  const facultyCount = users.filter(u => u.role === 'faculty').length;
+  const hasFilters = searchTerm || selectedRole !== 'all' || selectedStatus !== 'all';
+
+  const showPending = () => {
+    setSelectedRole('faculty');
+    setSelectedStatus('pending');
+  };
+
+  const renderActions = (user) =>
+    user.role === 'faculty' && user.status === 'pending' ? (
+      <div className="flex gap-1.5">
+        <Button size="sm" onClick={() => approveUser(user.id)}>
+          Approve
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => setConfirmTarget({ id: user.id, name: user.name, mode: 'reject' })}
+        >
+          Reject
+        </Button>
+      </div>
+    ) : (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        onClick={() => setConfirmTarget({ id: user.id, name: user.name, mode: 'delete' })}
+      >
+        Delete
+      </Button>
+    );
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">User Management</h1>
-        <p className="text-gray-600">Manage all users and approve faculty registrations</p>
-      </div>
+      <PageHeader
+        title="People"
+        description={
+          loading ? (
+            'Everyone with an account, and faculty sign-ups waiting for a yes.'
+          ) : (
+            <>
+              {users.length} accounts, {activeStudents} of them active students.{' '}
+              {pendingCount > 0 ? (
+                <button type="button" onClick={showPending} className="text-primary underline underline-offset-4">
+                  {pendingCount} faculty {pendingCount === 1 ? 'sign-up needs' : 'sign-ups need'} a look.
+                </button>
+              ) : (
+                'No faculty sign-ups waiting.'
+              )}
+            </>
+          )
+        }
+      />
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search Users</label>
-            <input
+      <FadeIn delay={0.05} className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <Tabs value={selectedRole} onValueChange={setSelectedRole}>
+          <TabsList className="w-full sm:w-fit">
+            <TabsTrigger value="all">
+              Everyone <span className="meta ml-1.5">{users.length}</span>
+            </TabsTrigger>
+            <TabsTrigger value="student">
+              Students <span className="meta ml-1.5">{studentCount}</span>
+            </TabsTrigger>
+            <TabsTrigger value="faculty">
+              Faculty <span className="meta ml-1.5">{facultyCount}</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative sm:w-64">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" strokeWidth={1.75} />
+            <Input
+              id="user-search"
               type="text"
+              aria-label="Search people"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, email, ID..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              placeholder="Name, email, ID or college"
+              className="pl-9"
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Role</label>
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-            >
-              <option value="all">All Roles</option>
-              <option value="student">Students</option>
-              <option value="faculty">Faculty</option>
-            </select>
-          </div>
-
-          <div className="flex items-end">
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger id="status-filter" aria-label="Status" className="w-full sm:w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasFilters && (
             <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedRole('all');
-              }}
-              className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              type="button"
+              onClick={clearFilters}
+              className="text-muted-foreground hover:text-foreground self-start text-sm underline underline-offset-4 sm:self-auto"
             >
-              Clear Filters
+              Clear
             </button>
-          </div>
+          )}
         </div>
-      </div>
+      </FadeIn>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role & Details
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <p className="text-gray-500">No users found</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                          <span className="font-medium text-gray-600">
-                            {user.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm">
-                        <span className="px-2 py-1 text-xs rounded-full capitalize bg-blue-100 text-blue-800">
-                          {user.role}
-                        </span>
-                        {user.role === 'faculty' ? (
-                          <div className="mt-2">
-                            <p className="text-gray-600">ID: {user.faculty_id}</p>
-                            <p className="text-gray-600">Dept: {user.department}</p>
-                          </div>
-                        ) : user.role === 'student' ? (
-                          <div className="mt-2">
-                            <p className="text-gray-600">{user.college_name}</p>
-                            <p className="text-gray-600">{user.course} - {user.year}</p>
-                          </div>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        user.status === 'approved'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {user.status === 'approved' ? 'Approved' : 'Pending Approval'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {user.role === 'faculty' && user.status === 'pending' ? (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => approveUser(user.id)}
-                            className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => deleteUser(user.id)}
-                            className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => deleteUser(user.id)}
-                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* People */}
+      <FadeIn delay={0.1}>
+        {loading ? (
+          <ListSkeleton rows={6} />
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState
+            title="No one matches"
+            description={hasFilters ? 'Try a different search or clear the filters.' : 'No one has signed up yet.'}
+            action={hasFilters ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : null}
+          />
+        ) : (
+          <>
+            <p className="meta mb-2">
+              Showing {filteredUsers.length} of {users.length}
+            </p>
 
-      {/* Stats */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow p-6">
-          <p className="text-sm text-gray-500">Total Users</p>
-          <p className="text-2xl font-bold">{users.length}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow p-6">
-          <p className="text-sm text-gray-500">Pending Approvals</p>
-          <p className="text-2xl font-bold text-yellow-600">
-            {users.filter(u => u.role === 'faculty' && u.status === 'pending').length}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl shadow p-6">
-          <p className="text-sm text-gray-500">Active Students</p>
-          <p className="text-2xl font-bold text-green-600">
-            {users.filter(u => u.role === 'student' && u.status === 'approved').length}
-          </p>
-        </div>
-      </div>
+            {/* Desktop table */}
+            <div className="hidden border-y md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="pl-0">Name</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="pr-0 text-right"><span className="sr-only">Actions</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="pl-0">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="size-9">
+                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="font-medium">{user.name}</div>
+                            <div className="text-muted-foreground text-sm">{user.email}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="capitalize">{user.role}</div>
+                        {userDetails(user) && <div className="meta mt-0.5">{userDetails(user)}</div>}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <StatusBadge status={user.status} />
+                      </TableCell>
+                      <TableCell className="pr-0 whitespace-nowrap">
+                        <div className="flex justify-end">{renderActions(user)}</div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile list */}
+            <ul className="divide-y border-y md:hidden">
+              {filteredUsers.map((user) => (
+                <li key={user.id} className="py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="size-9">
+                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="truncate font-medium">{user.name}</div>
+                        <StatusBadge status={user.status} />
+                      </div>
+                      <div className="text-muted-foreground truncate text-sm">{user.email}</div>
+                      <p className="meta mt-1">
+                        <span className="capitalize">{user.role}</span>
+                        {userDetails(user) && ` · ${userDetails(user)}`}
+                      </p>
+                      <div className="mt-3 flex justify-end">{renderActions(user)}</div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </FadeIn>
+
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onOpenChange={(o) => !o && setConfirmTarget(null)}
+        title={confirmTarget?.mode === 'reject' ? 'Reject faculty registration?' : 'Delete user?'}
+        description={
+          confirmTarget
+            ? `Are you sure you want to ${confirmTarget.mode === 'reject' ? 'reject' : 'delete'} ${confirmTarget.name}? This will remove the account and cannot be undone.`
+            : undefined
+        }
+        confirmLabel={confirmTarget?.mode === 'reject' ? 'Reject' : 'Delete'}
+        onConfirm={() => {
+          const target = confirmTarget;
+          setConfirmTarget(null);
+          if (target) deleteUser(target.id);
+        }}
+      />
     </div>
   );
 };

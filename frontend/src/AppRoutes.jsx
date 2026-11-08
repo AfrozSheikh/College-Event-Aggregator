@@ -1,29 +1,31 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { FullPageLoader } from './components/common/Loaders';
+import NotFound from './pages/NotFound';
 
-// Pages
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import AdminDashboard from './pages/AdminDashboard';
-import FacultyDashboard from './pages/FacultyDashboard';
-import StudentDashboard from './pages/StudentDashboard';
-import EventsPage from './pages/EventsPage';
-import EventDetail from './pages/EventDetail';
-import EventForm from './pages/EventForm';
-import ParticipationForm from './pages/ParticipationForm';
-import FeedbackForm from './pages/FeedbackForm';
-import Gallery from './pages/Gallery';
-import ReportViewer from './pages/ReportViewer';
-import UserManagement from './pages/UserManagement';
-import MyRegistrations from './pages/MyRegistrations';
-import EventParticipants from './pages/EventParticipants';
-import DynamicFeedbackForm from './components/DynamicFeedbackForm';
+// Pages (lazy-loaded so each page is its own chunk)
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const FacultyDashboard = lazy(() => import('./pages/FacultyDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+const EventsPage = lazy(() => import('./pages/EventsPage'));
+const EventDetail = lazy(() => import('./pages/EventDetail'));
+const EventForm = lazy(() => import('./pages/EventForm'));
+const ParticipationForm = lazy(() => import('./pages/ParticipationForm'));
+const FeedbackForm = lazy(() => import('./pages/FeedbackForm'));
+const Gallery = lazy(() => import('./pages/Gallery'));
+const ReportViewer = lazy(() => import('./pages/ReportViewer'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const MyRegistrations = lazy(() => import('./pages/MyRegistrations'));
+const EventParticipants = lazy(() => import('./pages/EventParticipants'));
+const DynamicFeedbackForm = lazy(() => import('./components/DynamicFeedbackForm'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import MyFeedback from './pages/MyFeedback';
+const MyFeedback = lazy(() => import('./pages/MyFeedback'));
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -40,17 +42,11 @@ function AppRoutes() {
 
   // ✅ Auth loading guard
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <FullPageLoader label="Getting things ready…" />;
   }
 
   return (
+    <Suspense fallback={<FullPageLoader />}>
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
@@ -90,19 +86,22 @@ function AppRoutes() {
         }
       />
 
-// In the student routes section, update:
-<Route path="/student/*" element={
-  <ProtectedRoute allowedRoles={['student']}>
-    <Layout>
-      <Routes>
-        <Route index element={<StudentDashboard />} />
-        <Route path="my-registrations" element={<MyRegistrations />} />
-        <Route path="my-feedback" element={<MyFeedback />} /> {/* Add this */}
-        <Route path="*" element={<Navigate to="/student" />} />
-      </Routes>
-    </Layout>
-  </ProtectedRoute>
-} />
+      {/* Student */}
+      <Route
+        path="/student/*"
+        element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <Layout>
+              <Routes>
+                <Route index element={<StudentDashboard />} />
+                <Route path="my-registrations" element={<MyRegistrations />} />
+                <Route path="my-feedback" element={<MyFeedback />} />
+                <Route path="*" element={<Navigate to="/student" />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Shared */}
       <Route path="/" element={<Navigate to="/login" />} />
@@ -126,7 +125,9 @@ function AppRoutes() {
         path="/events/:id/participate"
         element={
           <ProtectedRoute allowedRoles={['student']}>
-            <ParticipationForm />
+            <Layout>
+              <ParticipationForm />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -134,7 +135,9 @@ function AppRoutes() {
         path="/events/:id/feedback"
         element={
           <ProtectedRoute allowedRoles={['student']}>
-            <FeedbackForm />
+            <Layout>
+              <FeedbackForm />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -160,7 +163,9 @@ function AppRoutes() {
         path="/create-event"
         element={
           <ProtectedRoute allowedRoles={['admin', 'faculty']}>
-            <EventForm />
+            <Layout>
+              <EventForm />
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -168,27 +173,17 @@ function AppRoutes() {
         path="/edit-event/:id"
         element={
           <ProtectedRoute allowedRoles={['admin', 'faculty']}>
-            <EventForm />
+            <Layout>
+              <EventForm />
+            </Layout>
           </ProtectedRoute>
         }
       />
 
       {/* 404 */}
-      <Route
-        path="*"
-        element={
-          <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="text-center">
-              <h1 className="text-6xl font-bold mb-4">404</h1>
-              <p className="text-xl mb-8">Page not found</p>
-              <a href="/" className="px-6 py-3 bg-blue-600 text-white rounded-lg">
-                Go Home
-              </a>
-            </div>
-          </div>
-        }
-      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 }
 

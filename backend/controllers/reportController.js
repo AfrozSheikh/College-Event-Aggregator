@@ -1,7 +1,5 @@
 const pool = require('../config/db');
 const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const path = require('path');
 
 const reportController = {
     // Generate PDF report for event
@@ -86,9 +84,9 @@ const reportController = {
                 dynamicFeedback = responses;
             }
             
-            // Get images
+            // Get images (stored in DB)
             const [images] = await pool.query(
-                'SELECT * FROM event_gallery WHERE event_id = ?',
+                'SELECT id, file_data FROM event_gallery WHERE event_id = ?',
                 [eventId]
             );
             
@@ -100,15 +98,10 @@ const reportController = {
             // Create PDF with better styling
             const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
             const filename = `event-report-${eventId}-${Date.now()}.pdf`;
-            const filepath = path.join(__dirname, '../uploads/reports', filename);
             
-            // Ensure directory exists
-            if (!fs.existsSync(path.dirname(filepath))) {
-                fs.mkdirSync(path.dirname(filepath), { recursive: true });
-            }
-            
-            const writeStream = fs.createWriteStream(filepath);
-            doc.pipe(writeStream);
+            // Collect the PDF in memory - it is saved to the database, not to disk
+            const chunks = [];
+            doc.on('data', chunk => chunks.push(chunk));
             
             // ===== HELPER FUNCTIONS FOR STYLING =====
             const drawSectionHeader = (text, color = '#2563eb') => {
@@ -237,10 +230,8 @@ const reportController = {
                 let yPos = doc.y;
                 
                 for (let img of images) {
-                    const imagePath = path.join(__dirname, '..', img.image_path);
-                    
                     try {
-                        if (fs.existsSync(imagePath)) {
+                        if (img.file_data) {
                             if (imageCount > 0 && imageCount % 2 === 0) {
                                 xPos = 50;
                                 yPos += 200;
@@ -255,7 +246,7 @@ const reportController = {
                             
                             // Image with border
                             doc.rect(xPos - 3, yPos - 3, 236, 176).fillAndStroke('#ffffff', '#e2e8f0');
-                            doc.image(imagePath, xPos, yPos, {
+                            doc.image(img.file_data, xPos, yPos, {
                                 width: 230,
                                 height: 170,
                                 fit: [230, 170]
@@ -461,14 +452,28 @@ const reportController = {
                     );
             }
             
-            doc.end();
-            
-            writeStream.on('finish', () => {
-                res.json({
-                    message: 'Report generated successfully',
-                    downloadUrl: `/uploads/reports/${filename}`
-                });
+            doc.on('end', async () => {
+                try {
+                    const pdfBuffer = Buffer.concat(chunks);
+                    
+                    // Keep only the latest report per event
+                    await pool.query('DELETE FROM event_reports WHERE event_id = ?', [eventId]);
+                    const [result] = await pool.query(
+                        'INSERT INTO event_reports (event_id, file_name, mime_type, file_data) VALUES (?, ?, ?, ?)',
+                        [eventId, filename, 'application/pdf', pdfBuffer]
+                    );
+                    
+                    res.json({
+                        message: 'Report generated successfully',
+                        downloadUrl: `/api/files/reports/${result.insertId}`
+                    });
+                } catch (saveError) {
+                    console.error('Save report error:', saveError);
+                    res.status(500).json({ error: 'Failed to save report' });
+                }
             });
+            
+            doc.end();
             
         } catch (error) {
             console.error('Generate report error:', error);
