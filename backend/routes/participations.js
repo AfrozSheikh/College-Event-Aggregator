@@ -8,17 +8,17 @@ router.get('/event/:eventId', participationController.getEventParticipations);
 router.get('/student/:studentId', async (req, res) => {
     try {
       const { studentId } = req.params;
-      
-      const [participations] = await pool.query(
+
+      const { rows: participations } = await pool.query(
         `SELECT p.*, e.title as event_title, e.event_date, e.location, e.category,
                 ${participationController.PARTICIPATION_FILE_URLS}
-         FROM participations p 
-         LEFT JOIN events e ON p.event_id = e.id 
-         WHERE p.student_id = ? 
+         FROM participations p
+         LEFT JOIN events e ON p.event_id = e.id
+         WHERE p.student_id = $1
          ORDER BY e.event_date DESC`,
         [studentId]
       );
-      
+
       res.json(participations);
     } catch (error) {
       console.error('Get student participations error:', error);
@@ -30,12 +30,12 @@ router.get('/student/:studentId', async (req, res) => {
 router.get('/check/:eventId/:studentId', async (req, res) => {
   try {
     const { eventId, studentId } = req.params;
-    
-    const [registrations] = await pool.query(
-      'SELECT id FROM participations WHERE event_id = ? AND student_id = ?',
+
+    const { rows: registrations } = await pool.query(
+      'SELECT id FROM participations WHERE event_id = $1 AND student_id = $2',
       [eventId, studentId]
     );
-    
+
     res.json({ isRegistered: registrations.length > 0 });
   } catch (error) {
     console.error('Check registration error:', error);

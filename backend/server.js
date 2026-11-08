@@ -1,17 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
-const pool = require('./config/db'); // wherever your pool is
+const pool = require('./config/db');
 
 (async () => {
     try {
-        const connection = await pool.getConnection();
-        console.log('✅ Database connected successfully');
-        connection.release();
+        await pool.query('SELECT 1');
+        console.log('✅ Connected to Neon Postgres');
     } catch (err) {
         console.error('❌ Database connection failed:', err.message);
         process.exit(1);

@@ -15,7 +15,7 @@ const upload = multer({
             : /pdf|doc|docx|jpg|jpeg|png/;
         const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-        
+
         if (mimetype && extname) {
             return cb(null, true);
         }
@@ -44,9 +44,11 @@ const participationController = {
             if (err) {
                 return res.status(400).json({ error: err.message });
             }
-            
-            const connection = await pool.getConnection();
+
+            let connection;
             try {
+                connection = await pool.connect();
+
                 const {
                     eventId,
                     studentId,
@@ -57,36 +59,36 @@ const participationController = {
                     courseYear,
                     teamMembers
                 } = req.body;
-                
+
                 const documentFile = req.files?.document?.[0];
                 const paymentScreenshot = req.files?.paymentScreenshot?.[0];
-                
-                const [eventDetails] = await connection.query(
-                    'SELECT * FROM events WHERE id = ?',
+
+                const { rows: eventDetails } = await connection.query(
+                    'SELECT * FROM events WHERE id = $1',
                     [eventId]
                 );
-                
+
                 if (eventDetails.length === 0) {
                     return res.status(404).json({ error: 'Event not found' });
                 }
-                
+
                 // Paid events need proof of payment
                 if (Number(eventDetails[0].registration_fees) > 0 && !paymentScreenshot) {
                     return res.status(400).json({ error: 'Please upload the payment screenshot for this paid event' });
                 }
-                
+
                 // Check if already registered
-                const [existing] = await connection.query(
-                    'SELECT id FROM participations WHERE event_id = ? AND student_id = ?',
+                const { rows: existing } = await connection.query(
+                    'SELECT id FROM participations WHERE event_id = $1 AND student_id = $2',
                     [eventId, studentId]
                 );
-                
+
                 if (existing.length > 0) {
                     return res.status(400).json({ error: 'Already registered for this event' });
                 }
-                
-                await connection.beginTransaction();
-                
+
+                await connection.query('BEGIN');
+
                 // Insert participation
                 const participationData = {
                     event_id: eventId,
@@ -98,25 +100,31 @@ const participationController = {
                     course_year: courseYear,
                     team_members: teamMembers
                 };
-                
-                const [result] = await connection.query('INSERT INTO participations SET ?', participationData);
-                
+
+                const columns = Object.keys(participationData);
+                const { rows: inserted } = await connection.query(
+                    `INSERT INTO participations (${columns.join(', ')})
+                     VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')})
+                     RETURNING id`,
+                    Object.values(participationData)
+                );
+
                 // Save uploaded files in the database
                 const files = [
                     ['document', documentFile],
                     ['payment_screenshot', paymentScreenshot]
                 ].filter(([, file]) => file);
-                
+
                 for (const [fileType, file] of files) {
                     await connection.query(
                         `INSERT INTO participation_files (participation_id, file_type, file_name, mime_type, file_data)
-                         VALUES (?, ?, ?, ?, ?)`,
-                        [result.insertId, fileType, file.originalname, file.mimetype, file.buffer]
+                         VALUES ($1, $2, $3, $4, $5)`,
+                        [inserted[0].id, fileType, file.originalname, file.mimetype, file.buffer]
                     );
                 }
-                
-                await connection.commit();
-                
+
+                await connection.query('COMMIT');
+
                 // Send registration confirmation email
                 try {
                     await emailService.sendRegistrationConfirmation(
@@ -127,31 +135,32 @@ const participationController = {
                     console.error('Failed to send registration confirmation email:', emailError);
                     // Don't fail the request if email fails
                 }
-                
+
                 res.json({ message: 'Successfully registered for the event!' });
             } catch (error) {
-                await connection.rollback().catch(() => {});
+                if (connection) await connection.query('ROLLBACK').catch(() => {});
                 console.error('Registration error:', error);
                 res.status(500).json({ error: 'Server error' });
             } finally {
-                connection.release();
+                if (connection) connection.release();
             }
         });
     },
-    
+
     // Get participations for an event (Admin only)
     getEventParticipations: async (req, res) => {
         try {
             const { eventId } = req.params;
-            
-            const [participations] = await pool.query(
+
+            const { rows: participations } = await pool.query(
                 `SELECT p.*, u.name as student_name, u.email as student_email, ${PARTICIPATION_FILE_URLS}
-                 FROM participations p 
-                 LEFT JOIN users u ON p.student_id = u.id 
-                 WHERE p.event_id = ?`,
+                 FROM participations p
+                 LEFT JOIN users u ON p.student_id = u.id
+                 WHERE p.event_id = $1
+                 ORDER BY p.registered_at`,
                 [eventId]
             );
-            
+
             res.json(participations);
         } catch (error) {
             console.error('Get participations error:', error);

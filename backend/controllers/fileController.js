@@ -22,8 +22,8 @@ const fileController = {
     // Event gallery image
     getGalleryImage: async (req, res) => {
         try {
-            const [rows] = await pool.query(
-                'SELECT file_name, mime_type, file_data FROM event_gallery WHERE id = ?',
+            const { rows } = await pool.query(
+                'SELECT file_name, mime_type, file_data FROM event_gallery WHERE id = $1',
                 [req.params.id]
             );
             sendStoredFile(res, rows);
@@ -36,8 +36,8 @@ const fileController = {
     // Event payment QR code
     getEventPaymentQr: async (req, res) => {
         try {
-            const [rows] = await pool.query(
-                'SELECT file_name, mime_type, file_data FROM event_payment_qr WHERE event_id = ?',
+            const { rows } = await pool.query(
+                'SELECT file_name, mime_type, file_data FROM event_payment_qr WHERE event_id = $1',
                 [req.params.eventId]
             );
             sendStoredFile(res, rows);
@@ -50,8 +50,8 @@ const fileController = {
     // Participation file (payment screenshot / document)
     getParticipationFile: async (req, res) => {
         try {
-            const [rows] = await pool.query(
-                'SELECT file_name, mime_type, file_data FROM participation_files WHERE id = ?',
+            const { rows } = await pool.query(
+                'SELECT file_name, mime_type, file_data FROM participation_files WHERE id = $1',
                 [req.params.id]
             );
             sendStoredFile(res, rows);
@@ -64,8 +64,8 @@ const fileController = {
     // Generated PDF report
     getReport: async (req, res) => {
         try {
-            const [rows] = await pool.query(
-                'SELECT file_name, mime_type, file_data FROM event_reports WHERE id = ?',
+            const { rows } = await pool.query(
+                'SELECT file_name, mime_type, file_data FROM event_reports WHERE id = $1',
                 [req.params.id]
             );
             sendStoredFile(res, rows);

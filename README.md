@@ -83,17 +83,17 @@ The College Event Management System is a full-stack web application designed to 
 ### Backend
 - **Runtime:** Node.js
 - **Framework:** Express.js 4.21.2
-- **Database:** MySQL2 3.12.0
+- **Database driver:** pg (node-postgres) 8.x
 - **File Upload:** Multer 1.4.5-lts.1
 - **Email Service:** Nodemailer 6.9.16
 - **CORS:** cors 2.8.5
-- **Environment:** dotenv 16.4.7
 - **PDF Generation:** pdfkit 0.15.1
 - **Development:** Nodemon 2.0.22
 
 ### Database
-- **DBMS:** MySQL
-- **Tables:** 9 tables (Users, Events, Event Gallery, Participations, Feedback Forms, Questions, Responses, Answers, Notifications)
+- **DBMS:** PostgreSQL, hosted on [Neon](https://neon.tech)
+- **Tables:** 13 tables (Users, Events, Event Gallery, Event Payment QR, Event Reports, Participations, Participation Files, Feedback, Feedback Forms, Questions, Responses, Answers, Notifications)
+- **Files:** event images, payment QR codes, payment screenshots and PDF reports are stored in the database (BYTEA), not on disk
 
 ## 🏗️ System Architecture
 
@@ -110,9 +110,9 @@ College Event Management System
 │   ├── Controllers (Auth, Events, Participation, Feedback, Reports, Notifications)
 │   ├── Services (Email Service)
 │   ├── Config (Database)
-│   └── Uploads (Event Images, Payment QR, Documents)
+│   └── Files API (images, QR codes, screenshots, reports served from the DB)
 │
-└── Database (MySQL)
+└── Database (Neon Postgres)
     ├── Users (Admin, Faculty, Student)
     ├── Events (with Payment QR)
     ├── Gallery, Participations
@@ -123,7 +123,7 @@ College Event Management System
 
 ### Prerequisites
 - Node.js (v14 or higher)
-- MySQL (v8 or higher)
+- Internet access to the Neon database (no local database needed)
 - npm or yarn
 
 ### Clone Repository
@@ -146,31 +146,30 @@ npm install
 
 ## 💾 Database Setup
 
-### 1. Create Database
+The app uses a hosted **Neon Postgres** database. The connection string is set in
+`backend/config/db.js`.
+
+### 1. Create the tables (first time only)
 ```bash
-mysql -u root -p
+cd backend
+npm run db:init
 ```
+This runs `backend/schema.sql` against Neon. It is safe to run again – it only creates what is
+missing and never deletes data.
 
-### 2. Run Schema
-```sql
-source backend/main_schema.sql
-```
-
-Or manually execute the SQL commands in `backend/main_schema.sql`
-
-### 3. Database Tables
-The schema creates the following tables:
+### 2. Database Tables
 - `users` - User accounts with role-based access
-- `events` - Event details with payment QR support
-- `event_gallery` - Event images (up to 10 per event)
+- `events` - Event details
+- `event_gallery` - Event images (stored in the DB)
+- `event_payment_qr` - Payment QR code per event (stored in the DB)
+- `event_reports` - Generated PDF reports (stored in the DB)
 - `participations` - Student registrations
-- `feedback_forms` - Dynamic feedback form definitions
-- `feedback_questions` - Questions for each form
-- `feedback_responses` - Student feedback submissions
-- `feedback_answers` - Individual answers to questions
+- `participation_files` - Payment screenshots / documents (stored in the DB)
+- `feedback` - Legacy rating feedback
+- `feedback_forms`, `feedback_questions`, `feedback_responses`, `feedback_answers` - Dynamic feedback
 - `notifications` - In-app notifications
 
-### 4. Default Admin Account
+### 3. Default Admin Account
 ```
 Email: admin@college.edu
 Password: admin123
@@ -179,22 +178,10 @@ Password: admin123
 ## ⚙️ Configuration
 
 ### Backend Configuration
-Create `.env` file in `backend` directory:
-
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=college_event_system
-
-# Server Configuration
-PORT=5000
-
-# Email Configuration (Gmail)
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_app_specific_password
-```
+There is no `.env` file. Settings live in the code:
+- **Database:** connection string in `backend/config/db.js`
+- **Port:** `5000`, set in `backend/server.js`
+- **Email (Gmail):** sender address and app password in `backend/services/emailService.js`
 
 ### Email Setup (Gmail)
 1. Enable 2-Factor Authentication in your Gmail account
@@ -202,7 +189,7 @@ EMAIL_PASSWORD=your_app_specific_password
    - Go to Google Account → Security
    - Enable 2-Step Verification
    - Generate App Password for "Mail"
-3. Use the 16-character password in `.env`
+3. Put the 16-character password in `backend/services/emailService.js`
 
 ### Frontend Configuration
 The frontend is configured to connect to `http://localhost:5000` for API calls. Update `axios` base URLs in components if needed.
@@ -357,14 +344,11 @@ Developed with ❤️ for streamlining college event management
 
 ## 🐛 Known Issues & Fixes
 
-### Database Migration
-If updating from old schema, run:
-```sql
-source backend/add_payment_qr_column.sql
-```
+### Database
+If tables are missing (e.g. a new Neon database), run `npm run db:init` in `backend`.
 
 ### Email Service
-Ensure Gmail App Password is correctly configured in `.env` for email functionality.
+Ensure the Gmail App Password in `backend/services/emailService.js` is valid for email functionality.
 
 ## 🔮 Future Enhancements
 
