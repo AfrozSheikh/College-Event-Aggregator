@@ -42,6 +42,32 @@ const SectionTitle = ({ children, aside }) => (
   </div>
 );
 
+// Whole days from today until the given date ("0" = today)
+const daysUntil = (date) =>
+  Math.round((new Date(new Date(date).toDateString()) - new Date(new Date().toDateString())) / 864e5);
+
+const countdown = (days) => (days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`);
+
+/*
+ * A highlighted figure: pinned-note card with a brick top rule, a large number,
+ * one line of context and a link to where the admin can act on it.
+ */
+const FeaturedStat = ({ label, value, children, to, cta }) => (
+  <Link
+    to={to}
+    className="group bg-card relative flex flex-col overflow-hidden rounded-lg border p-5 transition-colors hover:border-foreground/30 sm:p-6"
+  >
+    <span className="bg-primary absolute inset-x-0 top-0 h-[3px]" />
+    <span className="text-muted-foreground text-sm font-medium">{label}</span>
+    <span className="mt-2 font-serif text-[3.25rem] leading-none font-medium tabular sm:text-[3.75rem]">{value}</span>
+    <div className="mt-3 min-h-10 text-sm">{children}</div>
+    <span className="text-muted-foreground group-hover:text-primary mt-4 inline-flex items-center gap-1.5 border-t pt-3 text-sm transition-colors">
+      {cta}
+      <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+    </span>
+  </Link>
+);
+
 const AdminDashboard = () => {
   const { user } = useAuth();
   const [pendingFaculty, setPendingFaculty] = useState([]);
@@ -128,6 +154,11 @@ const AdminDashboard = () => {
   const categoryRows = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
   const maxCategory = categoryRows.length ? categoryRows[0][1] : 0;
 
+  // Soonest event from today onwards (from the already-fetched list)
+  const nextEvent = allEvents
+    .filter((e) => daysUntil(e.event_date) >= 0)
+    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0];
+
   const firstName = user?.name?.split(' ')[0] || 'Admin';
   const pendingCount = stats.pendingFaculty || 0;
   const summary = [
@@ -154,12 +185,37 @@ const AdminDashboard = () => {
         </Button>
       </FadeIn>
 
-      {/* Figures */}
-      <FadeIn delay={0.05}>
+      {/* Highlighted: upcoming events and registrations */}
+      <FadeIn delay={0.05} className="grid gap-4 sm:grid-cols-2">
+        <FeaturedStat label="Upcoming events" value={stats.upcomingEvents || 0} to="/events" cta="See all events">
+          {nextEvent ? (
+            <p>
+              <span className="text-muted-foreground">Next up: </span>
+              <span className="font-medium">{nextEvent.title}</span>
+              <span className={cn('ml-1.5', daysUntil(nextEvent.event_date) <= 2 ? 'text-primary font-medium' : 'text-muted-foreground')}>
+                · {countdown(daysUntil(nextEvent.event_date))}
+              </span>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">Nothing scheduled yet. Post an event so students have something to sign up for.</p>
+          )}
+        </FeaturedStat>
+
+        <FeaturedStat label="Registrations" value={stats.totalParticipants || 0} to="/admin/reports" cta="Open reports">
+          <p>
+            <span className="font-medium tabular">{stats.monthlyRegistrations || 0}</span>
+            <span className="text-muted-foreground"> this month</span>
+          </p>
+          {(stats.monthlyRegistrations || 0) === 0 && (stats.upcomingEvents || 0) > 0 && (
+            <p className="text-primary mt-1 text-xs font-medium">No sign-ups yet this month. Worth a reminder to students.</p>
+          )}
+        </FeaturedStat>
+      </FadeIn>
+
+      {/* Everything else, kept quiet */}
+      <FadeIn delay={0.08}>
         <StatRow>
-          <StatCard label="Events" value={stats.totalEvents} hint={`${stats.recentEvents} added in the last 7 days`} />
-          <StatCard label="Upcoming" value={stats.upcomingEvents} />
-          <StatCard label="Registrations" value={stats.totalParticipants} hint={`${stats.monthlyRegistrations} this month`} />
+          <StatCard label="Events in total" value={stats.totalEvents} hint={`${stats.recentEvents} added in the last 7 days`} />
           <StatCard label="Students" value={stats.totalStudents} />
           <StatCard
             label="Faculty"
