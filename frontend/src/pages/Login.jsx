@@ -212,9 +212,6 @@ const Login = () => {
               .
             </p>
 
-            <p className="meta mt-10 border-t border-dashed pt-4">
-              Demo admin: <span className="text-foreground">admin@college.edu</span> / <span className="text-foreground">admin123</span>
-            </p>
           </FadeIn>
         </div>
       </main>
